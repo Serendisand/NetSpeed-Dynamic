@@ -30,25 +30,18 @@
                         <span class="arrow up">↑</span>
                         <div class="speed-info">
                             <span class="label">上传速度</span>
-                            <span class="value">124.5 KB/s</span>
+                            <span class="value">{{ uploadSpeed }}</span>
                         </div>
                     </div>
                     <div class="speed-item">
                         <span class="arrow down">↓</span>
                         <div class="speed-info">
                             <span class="label">下载速度</span>
-                            <span class="value">2.4 MB/s</span>
+                            <span class="value">{{ downloadSpeed }}</span>
                         </div>
                     </div>
                 </div>
-                <div class="mini-chart">
-                    <div class="bar" style="height: 40%"></div>
-                    <div class="bar" style="height: 60%"></div>
-                    <div class="bar" style="height: 45%"></div>
-                    <div class="bar" style="height: 75%"></div>
-                    <div class="bar" style="height: 90%"></div>
-                    <div class="bar" style="height: 55%"></div>
-                </div>
+                <div ref="chartRef" class="mini-chart"></div>
             </div>
 
             <div class="card settings-card">
@@ -83,24 +76,134 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue';
+import { ref, onMounted, onUnmounted, watch } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
 import { emit, listen } from '@tauri-apps/api/event';
 
+// 【核心改动】直接从全局 window 中获取 echarts 对象，规避 TS 编译报错
+const echarts = (window as any).echarts;
+
 const isWidgetVisible = ref(false);
-// 开机自启虽然在这定义了，但在 UI 上已禁用
 const autoStart = ref(false);
 const opacity = ref(Number(localStorage.getItem('nsd_island_opacity') || '100'));
 
+// 实时速度文本
+const uploadSpeed = ref('0 B/s');
+const downloadSpeed = ref('0 B/s');
+
+// 照抄灵动岛的数据计算变量
+let lastRx = 0;
+let lastTx = 0;
+let speedTimer: number;
+
+// ECharts 实例及队列
+const chartRef = ref<HTMLElement | null>(null);
+let chartInstance: any = null;
+const chartDataQueue: number[] = Array(15).fill(0); // 预留15个初始0点，让图表顺滑滚动
+
+// 格式化速度显示
+const formatSpeed = (bytes: number) => {
+    if (bytes < 1024) return bytes + ' B/s';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB/s';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB/s';
+};
+
+// 初始化 ECharts 折线图
+const initChart = () => {
+    if (!chartRef.value || !echarts) return;
+    chartInstance = echarts.init(chartRef.value);
+
+    const option = {
+        grid: {
+            top: 5,
+            bottom: 5,
+            left: 0,
+            right: 0,
+        },
+        xAxis: {
+            type: 'category',
+            boundaryGap: false,
+            show: false,
+        },
+        yAxis: {
+            type: 'value',
+            show: false,
+            min: 0,
+        },
+        series: [
+            {
+                data: chartDataQueue,
+                type: 'line',
+                smooth: true,          // 平滑折线
+                symbol: 'none',        // 隐藏圆点
+                lineStyle: {
+                    color: '#3b82f6',  // 科技蓝主色
+                    width: 2,
+                },
+                // 渐变面积覆盖
+                areaStyle: {
+                    color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                        { offset: 0, color: 'rgba(59, 130, 246, 0.4)' },
+                        { offset: 1, color: 'rgba(59, 130, 246, 0.0)' }
+                    ]),
+                },
+            },
+        ],
+    };
+
+    chartInstance.setOption(option);
+};
+
+// 照抄灵动岛的流量获取与计算原理
+const fetchSpeedStats = async () => {
+    try {
+        const [currentRx, currentTx] = await invoke<[number, number]>('get_network_stats');
+        if (lastRx !== 0) {
+            const rxDiff = currentRx - lastRx;
+            const txDiff = currentTx - lastTx;
+
+            // 1. 更新文字显示
+            downloadSpeed.value = formatSpeed(rxDiff);
+            uploadSpeed.value = formatSpeed(txDiff);
+
+            // 2. 计算下行流量，换算为纯数字 MB/s
+            const speedMB = rxDiff / (1024 * 1024);
+
+            // 3. 更新图表队列数据
+            chartDataQueue.push(Number(speedMB.toFixed(2)));
+            if (chartDataQueue.length > 15) {
+                chartDataQueue.shift();
+            }
+
+            // 4. 推动图表刷新
+            chartInstance?.setOption({
+                series: [{ data: chartDataQueue }]
+            });
+        }
+        lastRx = currentRx;
+        lastTx = currentTx;
+    } catch (error) {
+        console.error('控制台流量获取失败:', error);
+    }
+};
+
 // 监听滑块变化
 watch(opacity, async (newVal) => {
-    // 1. 将新值存入本地缓存，这样刷新页面就不会丢了
     localStorage.setItem('nsd_island_opacity', newVal.toString());
-    // 2. 同步发射事件通知灵动岛
     await emit('control-island-opacity', { opacity: newVal });
 });
 
 onMounted(async () => {
+    // 初始化图表
+    initChart();
+
+    // 开启流量计算定时器（1秒同步一次）
+    fetchSpeedStats();
+    speedTimer = setInterval(fetchSpeedStats, 1000) as unknown as number;
+
+    // 窗口缩放自适应尺寸
+    window.addEventListener('resize', () => chartInstance?.resize());
+
     // 监听来自灵动岛的自发性隐藏通知
     await listen<{ visible: boolean }>('island-status-sync', (event) => {
         isWidgetVisible.value = event.payload.visible;
@@ -113,13 +216,17 @@ onMounted(async () => {
                 isWidgetVisible.value = true;
                 return;
             }
-        } catch { /* 窗口还没注册好，忽略 */ }
+        } catch { /* 忽略 */ }
         await new Promise(r => setTimeout(r, 200));
     }
     isWidgetVisible.value = false;
 });
 
-// 切换逻辑
+onUnmounted(() => {
+    clearInterval(speedTimer);
+    chartInstance?.dispose();
+});
+
 const toggleWidget = async () => {
     const nextState = !isWidgetVisible.value;
     await emit('control-island-visibility', { show: nextState });
@@ -131,7 +238,6 @@ const toggleWidget = async () => {
 /* 全局样式基础重置 */
 :global(body) {
     background-color: #f8fafc;
-    /* 换成极浅的灰蓝色背景，突出白色卡片 */
     color: #1e293b;
     font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto, sans-serif;
     margin: 0;
@@ -149,7 +255,6 @@ const toggleWidget = async () => {
     min-height: calc(100vh - 56px);
 }
 
-/* 头部样式 */
 .panel-header {
     display: flex;
     justify-content: space-between;
@@ -170,13 +275,6 @@ const toggleWidget = async () => {
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
 }
 
-.svg-lightning {
-    width: 26px;
-    height: 26px;
-    /* 配合渐变加一点微小的阴影让图标更立体 */
-    filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.1));
-}
-
 .brand h1 {
     font-size: 20px;
     margin: 0;
@@ -191,7 +289,6 @@ const toggleWidget = async () => {
     margin: 4px 0 0 0;
 }
 
-/* 右上角控制区 */
 .header-controls {
     display: flex;
     align-items: center;
@@ -220,7 +317,6 @@ const toggleWidget = async () => {
     margin-bottom: 24px;
 }
 
-/* 主体内部分栏 */
 .main-content {
     display: grid;
     grid-template-columns: 1fr 1.3fr;
@@ -228,7 +324,6 @@ const toggleWidget = async () => {
     flex-grow: 1;
 }
 
-/* 现代化卡片 */
 .card {
     background: #ffffff;
     border: 1px solid #e2e8f0;
@@ -251,7 +346,6 @@ const toggleWidget = async () => {
     font-weight: 600;
 }
 
-/* 左侧状态监控面板 */
 .speed-monitor {
     display: flex;
     flex-direction: column;
@@ -306,26 +400,15 @@ const toggleWidget = async () => {
     letter-spacing: -0.5px;
 }
 
-/* 波动图表 */
+/* 波动图表 Canvas 容器 */
 .mini-chart {
-    display: flex;
-    align-items: flex-end;
-    gap: 8px;
-    height: 50px;
+    width: 100%;
+    height: 80px;
     margin-top: auto;
     padding-top: 16px;
     border-top: 1px solid #f1f5f9;
 }
 
-.mini-chart .bar {
-    flex: 1;
-    background: linear-gradient(to top, #3b82f6, #60a5fa);
-    border-radius: 4px 4px 0 0;
-    opacity: 0.85;
-    transition: height 0.3s ease;
-}
-
-/* 右侧设置列表 */
 .setting-item {
     display: flex;
     justify-content: space-between;
@@ -374,13 +457,11 @@ const toggleWidget = async () => {
     color: #64748b;
 }
 
-/* 置灰状态样式 */
 .is-disabled {
     opacity: 0.5;
     pointer-events: none;
 }
 
-/* Switch 开关样式 */
 .switch {
     position: relative;
     display: inline-block;
@@ -432,7 +513,6 @@ input:disabled+.slider {
     cursor: not-allowed;
 }
 
-/* Range 滑块样式 */
 .range-input {
     width: 100%;
     -webkit-appearance: none;
@@ -459,7 +539,6 @@ input:disabled+.slider {
     transform: scale(1.1);
 }
 
-/* 页脚 */
 .panel-footer {
     margin-top: 32px;
     display: flex;
