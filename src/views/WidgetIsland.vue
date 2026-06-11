@@ -1,18 +1,21 @@
 <template>
-    <div class="island-container" @mousedown="handleMouseDown" @contextmenu="handleRightClick">
-        <div class="speed-box">
-            <div class="speed-item">
-                <span :class="['label', { 'high-traffic': isHighUpload }]">↑</span>
-                <span class="value">{{ uploadSpeed }}</span>
+    <transition @enter="onEnter" @leave="onLeave" :css="false">
+        <div v-show="isIslandVisible" class="island-container" @mousedown="handleMouseDown"
+            :style="{ backgroundColor: `rgba(0, 0, 0, ${islandOpacity / 100})` }" @contextmenu="handleRightClick">
+            <div class="speed-box">
+                <div class="speed-item">
+                    <span :class="['label', { 'high-traffic': isHighUpload }]">↑</span>
+                    <span class="value">{{ uploadSpeed }}</span>
+                </div>
+                <div class="divider"></div>
+                <div class="speed-item">
+                    <span :class="['label', { 'high-traffic': isHighDownload }]">↓</span>
+                    <span class="value">{{ downloadSpeed }}</span>
+                </div>
             </div>
-            <div class="divider"></div>
-            <div class="speed-item">
-                <span :class="['label', { 'high-traffic': isHighDownload }]">↓</span>
-                <span class="value">{{ downloadSpeed }}</span>
-            </div>
+            <div :class="['status-dot', networkStatus]"></div>
         </div>
-        <div :class="['status-dot', networkStatus]"></div>
-    </div>
+    </transition>
 </template>
 
 <script setup lang="ts">
@@ -20,7 +23,12 @@ import { ref, onMounted, onUnmounted } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWindow, currentMonitor, PhysicalPosition, LogicalPosition } from '@tauri-apps/api/window';
 import { Menu, MenuItem } from '@tauri-apps/api/menu';
+import { listen, emit } from '@tauri-apps/api/event';
 
+const isIslandVisible = ref(false);
+
+// 灵动岛自身的透明度变量（默认100）
+const islandOpacity = ref(Number(localStorage.getItem('nsd_island_opacity') || '100'));
 
 const uploadSpeed = ref('0 KB/s');
 const downloadSpeed = ref('0 KB/s');
@@ -142,6 +150,70 @@ const adjustWindowPosition = async () => {
     }
 };
 
+// === 核心动画实现：基于你的 AE 公式转化 ===
+
+const onEnter = (el: Element, done: () => void) => {
+    const HTMLElement = el as HTMLElement;
+    HTMLElement.style.transformOrigin = 'center top'; // 类似苹果灵动岛从顶部展开
+    let start = performance.now();
+
+    const freq = 2.0;
+    const decay = 10.5; // 适度拉高阻力
+    const duration = 600;
+
+    const animate = (time: number) => {
+        let t = (time - start) / 1000;
+        let progress = (time - start) / duration;
+
+        // 数学方程：1 - cos(2πft) * e^(-dt)
+        let scale = 1 - Math.cos(freq * t * 2 * Math.PI) * Math.exp(-decay * t);
+        let opacity = Math.min(1, progress * 4); // 快速淡入
+
+        HTMLElement.style.transform = `scale(${scale})`;
+        HTMLElement.style.opacity = opacity.toString();
+
+        if (progress < 1) {
+            requestAnimationFrame(animate);
+        } else {
+            // 重置为最终干净的状态
+            HTMLElement.style.transform = `scale(1)`;
+            HTMLElement.style.opacity = '1';
+            done();
+        }
+    };
+    requestAnimationFrame(animate);
+};
+
+const onLeave = (el: Element, done: () => void) => {
+    const HTMLElement = el as HTMLElement;
+    HTMLElement.style.transformOrigin = 'center top';
+    let start = performance.now();
+
+    const duration = 300; // 收起动画通常更干脆、更快
+
+    const animate = (time: number) => {
+        let progress = (time - start) / duration;
+
+        // 离开动画：快速平滑回缩
+        // 使用 easing 曲线或简化的衰减
+        let scale = 1 - Math.pow(progress, 3); // 快速内收
+        let opacity = 1 - progress * 1.5;
+
+        HTMLElement.style.transform = `scale(${Math.max(0, scale)})`;
+        HTMLElement.style.opacity = Math.max(0, opacity).toString();
+
+        if (progress < 1) {
+            requestAnimationFrame(animate);
+        } else {
+            done();
+            // 【极其关键】等 DOM 动画播完了，再调用 Tauri 隐藏窗口
+            getCurrentWindow().hide().catch(console.error);
+            emit('island-status-sync', { visible: false });
+        }
+    };
+    requestAnimationFrame(animate);
+};
+
 // 1. 修改 handleRightClick 函数，并新增 handleMouseDown 函数
 const handleMouseDown = async (event: MouseEvent) => {
     // 只有按鼠标左键时才触发窗口拖拽，把右键留给自定义菜单
@@ -173,7 +245,7 @@ const handleRightClick = async (event: MouseEvent) => {
         text: '关闭',
         id: 'close',
         action: () => {
-            getCurrentWindow().hide().catch(console.error);
+            isIslandVisible.value = false;
         }
     });
 
@@ -201,7 +273,16 @@ onMounted(async () => {
         e.preventDefault();
     }, { capture: true }); // 使用捕获阶段，确保先于 Tauri 底层拦截
 
+    // 监听来自控制台的透明度同步指令
+    await listen<{ opacity: number }>('control-island-opacity', (event) => {
+        islandOpacity.value = event.payload.opacity;
+    });
+
     await adjustWindowPosition();
+
+    // 【修改】先显示透明的 Tauri 窗口，再触发 Vue 的灵动岛入场弹簧动画
+    await getCurrentWindow().show();
+    isIslandVisible.value = true;
 
     fetchSpeedStats();
     checkNetworkLatency();
@@ -211,6 +292,22 @@ onMounted(async () => {
 
     // 调大Ping间隔：从2.5秒调大到5.5秒
     pingTimer = setInterval(checkNetworkLatency, 5500) as unknown as number;
+
+    // 监听控制台发来的显隐调度指令
+    await listen<{ show: boolean }>('control-island-visibility', async (event) => {
+        if (event.payload.show) {
+            // 1. 先让透明的 OS 窗口容器显示，此时内部 DOM 为 v-show="false"，视觉上仍是隐形的
+            await getCurrentWindow().show();
+            await getCurrentWindow().setAlwaysOnTop(true);
+            // 2. 给予 40ms 的浏览器渲染帧缓冲，再撕开 Vue 的 v-show 状态，强制触发 enter 动画
+            setTimeout(() => {
+                isIslandVisible.value = true;
+            }, 40);
+        } else {
+            // 控制台关闭指令 -> 触发常规离开动画
+            isIslandVisible.value = false;
+        }
+    });
 });
 
 onUnmounted(() => {

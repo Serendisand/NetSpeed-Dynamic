@@ -2,15 +2,27 @@
     <div class="panel-container">
         <header class="panel-header">
             <div class="brand">
-                <div class="logo-icon">⚡</div>
+                <div class="logo-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white"
+                        stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="svg-lightning">
+                        <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+                    </svg>
+                </div>
                 <div>
                     <h1>NetSpeed Dynamic</h1>
                     <p class="subtitle">NSD 桌面动态组件 v1.0.0</p>
                 </div>
             </div>
-            <span class="status-badge" :class="{ 'is-active': isWidgetVisible }">
-                {{ isWidgetVisible ? '已开启' : '已关闭' }}
-            </span>
+
+            <div class="header-controls">
+                <span class="status-badge" :class="{ 'is-active': isWidgetVisible }">
+                    {{ isWidgetVisible ? '已开启' : '已关闭' }}
+                </span>
+                <label class="switch header-switch">
+                    <input type="checkbox" :checked="isWidgetVisible" @change="toggleWidget">
+                    <span class="slider"></span>
+                </label>
+            </div>
         </header>
 
         <hr class="divider" />
@@ -47,24 +59,13 @@
             <div class="card settings-card">
                 <h3>常规设置</h3>
 
-                <div class="setting-item">
+                <div class="setting-item is-disabled">
                     <div class="item-meta">
-                        <span class="item-title">显示灵动岛悬浮窗</span>
-                        <span class="item-desc">在桌面上方显示网速交互岛</span>
-                    </div>
-                    <label class="switch">
-                        <input type="checkbox" :checked="isWidgetVisible" @change="toggleWidget">
-                        <span class="slider"></span>
-                    </label>
-                </div>
-
-                <div class="setting-item">
-                    <div class="item-meta">
-                        <span class="item-title">开机自动启动</span>
+                        <span class="item-title">开机自动启动 <span class="tag-dev">未实现</span></span>
                         <span class="item-desc">跟随系统启动 NetSpeed</span>
                     </div>
                     <label class="switch">
-                        <input type="checkbox" v-model="autoStart">
+                        <input type="checkbox" v-model="autoStart" disabled>
                         <span class="slider"></span>
                     </label>
                 </div>
@@ -72,9 +73,9 @@
                 <div class="setting-item slider-item">
                     <div class="item-meta">
                         <span class="item-title">悬浮窗不透明度</span>
-                        <span class="item-desc">调节灵动岛的外观透明度</span>
+                        <span class="item-desc">调节灵动岛的外观透明度 ({{ opacity }}%)</span>
                     </div>
-                    <input type="range" min="20" max="100" v-model="opacity" class="range-input" />
+                    <input type="range" min="0" max="100" v-model="opacity" class="range-input" />
                 </div>
             </div>
         </div>
@@ -87,15 +88,29 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, watch } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
-import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
+import { emit, listen } from '@tauri-apps/api/event';
 
 const isWidgetVisible = ref(false);
-const autoStart = ref(true);
-const opacity = ref(90);
+// 开机自启虽然在这定义了，但在 UI 上已禁用
+const autoStart = ref(false);
+const opacity = ref(Number(localStorage.getItem('nsd_island_opacity') || '100'));
+
+// 监听滑块变化
+watch(opacity, async (newVal) => {
+    // 1. 将新值存入本地缓存，这样刷新页面就不会丢了
+    localStorage.setItem('nsd_island_opacity', newVal.toString());
+    // 2. 同步发射事件通知灵动岛
+    await emit('control-island-opacity', { opacity: newVal });
+});
 
 onMounted(async () => {
+    // 监听来自灵动岛的自发性隐藏通知
+    await listen<{ visible: boolean }>('island-status-sync', (event) => {
+        isWidgetVisible.value = event.payload.visible;
+    });
+
     for (let i = 0; i < 6; i++) {
         try {
             const visible = await invoke<boolean>('is_widget_visible');
@@ -106,45 +121,37 @@ onMounted(async () => {
         } catch { /* 窗口还没注册好，忽略 */ }
         await new Promise(r => setTimeout(r, 200));
     }
-    // 6 次都没拿到 true，说明确实没开
     isWidgetVisible.value = false;
 });
 
+// 切换逻辑
 const toggleWidget = async () => {
-    const widget = await WebviewWindow.getByLabel('widget');
-    if (!widget) return;
-
-    if (isWidgetVisible.value) {
-        await widget.hide();
-        isWidgetVisible.value = false;
-    } else {
-        await widget.show();
-        await widget.setAlwaysOnTop(true);
-        isWidgetVisible.value = true;
-    }
+    const nextState = !isWidgetVisible.value;
+    await emit('control-island-visibility', { show: nextState });
+    isWidgetVisible.value = nextState;
 };
 </script>
 
 <style scoped>
-/* 全局样式基础重置（纯白极简） */
+/* 全局样式基础重置 */
 :global(body) {
-    background-color: #ffffff;
+    background-color: #f8fafc;
+    /* 换成极浅的灰蓝色背景，突出白色卡片 */
     color: #1e293b;
-    /* 明确的深色字 */
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto, sans-serif;
     margin: 0;
     padding: 0;
     user-select: none;
+    -webkit-font-smoothing: antialiased;
 }
 
-/* 布局主容器 */
 .panel-container {
-    padding: 24px;
+    padding: 28px 32px;
     max-width: 800px;
     margin: 0 auto;
     display: flex;
     flex-direction: column;
-    min-height: calc(100vh - 48px);
+    min-height: calc(100vh - 56px);
 }
 
 /* 头部样式 */
@@ -152,121 +159,130 @@ const toggleWidget = async () => {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 16px;
+    margin-bottom: 24px;
 }
 
 .brand {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 16px;
 }
 
 .logo-icon {
-    font-size: 24px;
-    background: linear-gradient(135deg, #007aff, #00f0ff);
-    width: 42px;
-    height: 42px;
+    background: linear-gradient(135deg, #007aff, #00c6ff);
+    width: 48px;
+    height: 48px;
     display: flex;
     align-items: center;
     justify-content: center;
-    border-radius: 10px;
-    box-shadow: 0 4px 12px rgba(0, 122, 255, 0.15);
+    border-radius: 12px;
+    box-shadow: 0 4px 16px rgba(0, 122, 255, 0.25);
+}
+
+.svg-lightning {
+    width: 26px;
+    height: 26px;
+    /* 配合渐变加一点微小的阴影让图标更立体 */
+    filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.1));
 }
 
 .brand h1 {
-    font-size: 18px;
+    font-size: 20px;
     margin: 0;
-    font-weight: 600;
-    letter-spacing: 0.5px;
+    font-weight: 700;
+    letter-spacing: 0.2px;
     color: #0f172a;
-    /* 纯黑标题 */
 }
 
 .subtitle {
-    font-size: 12px;
+    font-size: 13px;
     color: #64748b;
-    /* 灰黑辅助字，保证清晰度 */
-    margin: 2px 0 0 0;
+    margin: 4px 0 0 0;
+}
+
+/* 右上角控制区 */
+.header-controls {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    background: #ffffff;
+    padding: 8px 12px 8px 16px;
+    border-radius: 24px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+    border: 1px solid #e2e8f0;
 }
 
 .status-badge {
-    font-size: 12px;
-    padding: 4px 10px;
-    border-radius: 20px;
-    background: #fef2f2;
-    color: #ef4444;
-    border: 1px solid #fee2e2;
+    font-size: 13px;
+    font-weight: 600;
+    color: #94a3b8;
     transition: all 0.3s;
-    font-weight: 500;
 }
 
 .status-badge.is-active {
-    background: #ecfdf5;
     color: #10b981;
-    border: 1px solid #d1fae5;
 }
 
 .divider {
     border: none;
     border-top: 1px solid #e2e8f0;
-    /* 浅灰分割线 */
-    margin-bottom: 20px;
+    margin-bottom: 24px;
 }
 
-/* 主主体分栏 */
+/* 主体内部分栏 */
 .main-content {
     display: grid;
-    grid-template-columns: 1fr 1.2fr;
-    gap: 20px;
+    grid-template-columns: 1fr 1.3fr;
+    gap: 24px;
     flex-grow: 1;
 }
 
-/* 白系卡片通用样式 */
+/* 现代化卡片 */
 .card {
     background: #ffffff;
     border: 1px solid #e2e8f0;
-    /* 浅灰色边框替代深色背景 */
-    border-radius: 16px;
-    padding: 20px;
+    border-radius: 20px;
+    padding: 24px;
     display: flex;
     flex-direction: column;
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+    box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.03);
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.card:hover {
+    box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.06);
 }
 
 .card h3 {
-    font-size: 14px;
-    color: #475569;
-    margin: 0 0 16px 0;
+    font-size: 15px;
+    color: #334155;
+    margin: 0 0 20px 0;
     font-weight: 600;
 }
 
-/* 左侧：状态监控面板 */
-.status-card {
-    background: #ffffff;
-}
-
+/* 左侧状态监控面板 */
 .speed-monitor {
     display: flex;
     flex-direction: column;
-    gap: 16px;
-    margin-bottom: 20px;
+    gap: 20px;
+    margin-bottom: 24px;
 }
 
 .speed-item {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 16px;
 }
 
 .arrow {
-    width: 28px;
-    height: 28px;
-    border-radius: 50%;
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-weight: bold;
-    font-size: 14px;
+    font-weight: 800;
+    font-size: 16px;
 }
 
 .arrow.up {
@@ -282,80 +298,103 @@ const toggleWidget = async () => {
 .speed-info {
     display: flex;
     flex-direction: column;
+    gap: 4px;
 }
 
 .speed-info .label {
-    font-size: 11px;
+    font-size: 12px;
     color: #64748b;
+    font-weight: 500;
 }
 
 .speed-info .value {
-    font-size: 16px;
-    font-weight: 600;
-    font-family: monospace;
+    font-size: 18px;
+    font-weight: 700;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
     color: #0f172a;
+    letter-spacing: -0.5px;
 }
 
-/* 波动图表占位 */
+/* 波动图表 */
 .mini-chart {
     display: flex;
     align-items: flex-end;
-    gap: 6px;
-    height: 45px;
+    gap: 8px;
+    height: 50px;
     margin-top: auto;
-    padding-top: 10px;
-    border-top: 1px dashed #e2e8f0;
+    padding-top: 16px;
+    border-top: 1px solid #f1f5f9;
 }
 
 .mini-chart .bar {
     flex: 1;
     background: linear-gradient(to top, #3b82f6, #60a5fa);
-    border-radius: 3px 3px 0 0;
-    opacity: 0.8;
+    border-radius: 4px 4px 0 0;
+    opacity: 0.85;
+    transition: height 0.3s ease;
 }
 
-/* 右侧：设置列表 */
+/* 右侧设置列表 */
 .setting-item {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 12px 0;
+    padding: 16px 0;
     border-bottom: 1px solid #f1f5f9;
 }
 
 .setting-item:last-child {
     border-bottom: none;
+    padding-bottom: 0;
 }
 
 .slider-item {
     flex-direction: column;
     align-items: flex-start;
-    gap: 12px;
+    gap: 16px;
 }
 
 .item-meta {
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: 4px;
 }
 
 .item-title {
     font-size: 14px;
-    font-weight: 500;
-    color: #0f172a;
+    font-weight: 600;
+    color: #1e293b;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.tag-dev {
+    font-size: 10px;
+    background: #f1f5f9;
+    color: #64748b;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-weight: normal;
 }
 
 .item-desc {
-    font-size: 12px;
+    font-size: 13px;
     color: #64748b;
 }
 
-/* 白系 Switch 切换开关样式 */
+/* 置灰状态样式 */
+.is-disabled {
+    opacity: 0.5;
+    pointer-events: none;
+}
+
+/* Switch 开关样式 */
 .switch {
     position: relative;
     display: inline-block;
-    width: 44px;
-    height: 24px;
+    width: 48px;
+    height: 28px;
 }
 
 .switch input {
@@ -372,21 +411,20 @@ const toggleWidget = async () => {
     right: 0;
     bottom: 0;
     background-color: #cbd5e1;
-    /* 未选中时为淡灰 */
-    transition: .3s;
-    border-radius: 24px;
+    transition: 0.4s cubic-bezier(0.4, 0.0, 0.2, 1);
+    border-radius: 28px;
 }
 
 .slider:before {
     position: absolute;
     content: "";
-    height: 18px;
-    width: 18px;
+    height: 22px;
+    width: 22px;
     left: 3px;
     bottom: 3px;
     background-color: white;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
-    transition: .3s;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    transition: 0.4s cubic-bezier(0.4, 0.0, 0.2, 1);
     border-radius: 50%;
 }
 
@@ -398,7 +436,12 @@ input:checked+.slider:before {
     transform: translateX(20px);
 }
 
-/* 白系滑块 Range 样式 */
+input:disabled+.slider {
+    background-color: #e2e8f0;
+    cursor: not-allowed;
+}
+
+/* Range 滑块样式 */
 .range-input {
     width: 100%;
     -webkit-appearance: none;
@@ -411,34 +454,38 @@ input:checked+.slider:before {
 
 .range-input::-webkit-slider-thumb {
     -webkit-appearance: none;
-    width: 16px;
-    height: 16px;
+    width: 20px;
+    height: 20px;
     border-radius: 50%;
-    background: #007aff;
+    background: #ffffff;
+    border: 2px solid #007aff;
     cursor: pointer;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
-    transition: 0.1s;
+    box-shadow: 0 2px 6px rgba(0, 122, 255, 0.3);
+    transition: transform 0.1s;
 }
 
 .range-input::-webkit-slider-thumb:hover {
-    transform: scale(1.2);
+    transform: scale(1.1);
 }
 
 /* 页脚 */
 .panel-footer {
-    margin-top: 24px;
+    margin-top: 32px;
     display: flex;
     justify-content: space-between;
-    font-size: 11px;
+    font-size: 12px;
     color: #94a3b8;
+    font-weight: 500;
 }
 
 .action-link {
     color: #007aff;
     cursor: pointer;
+    transition: color 0.2s;
 }
 
 .action-link:hover {
+    color: #0056b3;
     text-decoration: underline;
 }
 </style>
