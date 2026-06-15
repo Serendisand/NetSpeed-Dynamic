@@ -27,6 +27,7 @@
     "core:window:allow-unminimize",
     "core:window:allow-set-focus",
     "core:app:allow-version",
-    "autostart:default"
+    "autostart:default",
+    "opener:default"
   ]
 }

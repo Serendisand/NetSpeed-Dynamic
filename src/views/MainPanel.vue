@@ -115,15 +115,18 @@
                         <div class="stats-overview">
                             <div class="stat-box">
                                 <span class="stat-label">总上传</span>
-                                <span class="stat-val">{{ formatBytes(totalUpload) }}</span>
+                                <span class="stat-val">{{ formatBytesValue(totalUpload) }}</span>
+                                <span class="stat-unit">{{ formatBytesUnit(totalUpload) }}</span>
                             </div>
                             <div class="stat-box">
                                 <span class="stat-label">总下载</span>
-                                <span class="stat-val">{{ formatBytes(totalDownload) }}</span>
+                                <span class="stat-val">{{ formatBytesValue(totalDownload) }}</span>
+                                <span class="stat-unit">{{ formatBytesUnit(totalDownload) }}</span>
                             </div>
                             <div class="stat-box">
                                 <span class="stat-label">本月流量</span>
-                                <span class="stat-val">{{ formatBytes(monthTraffic) }}</span>
+                                <span class="stat-val">{{ formatBytesValue(monthTraffic) }}</span>
+                                <span class="stat-unit">{{ formatBytesUnit(monthTraffic) }}</span>
                             </div>
                         </div>
 
@@ -189,6 +192,7 @@ import { emit, listen } from '@tauri-apps/api/event';
 import { getVersion } from '@tauri-apps/api/app';
 import * as echarts from 'echarts';
 import { enable, disable, isEnabled } from '@tauri-apps/plugin-autostart';
+import { openUrl } from '@tauri-apps/plugin-opener';
 
 const isWidgetVisible = ref(false);
 const autoStart = ref(false);
@@ -284,12 +288,19 @@ const trafficData = ref<Record<string, { up: number; down: number }>>({});
 let saveThrottleCounter = 0;
 
 // 格式化字节数为人类可读格式
-const formatBytes = (bytes: number) => {
-    if (bytes === 0) return '0 B';
+const formatBytesValue = (bytes: number) => {
+    if (bytes === 0) return '0';
+    const k = 1024;
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)).toString();
+};
+
+const formatBytesUnit = (bytes: number) => {
+    if (bytes === 0) return 'B';
     const k = 1024;
     const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    return sizes[i];
 };
 
 const totalUpload = computed(() => Object.values(trafficData.value).reduce((acc, curr) => acc + curr.up, 0));
@@ -598,7 +609,7 @@ const checkUpdate = async () => {
                 '发现新版本',
                 `发现新版本 ${remoteVersionStr}！当前版本为 v${localVersionStr}。是否前往 GitHub 下载更新？`,
                 true,
-                () => { window.open(data.html_url, '_blank'); }
+                () => { openUrl(data.html_url); }
             );
         } else {
             showDialog('提示', '当前已是最新版本！');
@@ -766,6 +777,8 @@ const toggleWidget = async () => {
     --select-bg: #ffffff;
     --select-border: #e2e8f0;
     --select-text: #1e293b;
+    --data-tag-bg: #ececec;
+    --data-tag-color: #2b2b2b;
 }
 
 /* ==========================================================================
@@ -823,6 +836,8 @@ const toggleWidget = async () => {
     --select-bg: #292b2e;
     --select-border: #383c41;
     --select-text: #f8fafc;
+    --data-tag-bg: #202020;
+    --data-tag-color: #f8fafc;
 }
 
 /* ==========================================================================
@@ -1000,7 +1015,7 @@ const toggleWidget = async () => {
 }
 
 .speed-info .value {
-    font-size: 18px;
+    font-size: 22px;
     font-weight: 700;
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
     color: var(--speed-value);
@@ -1462,20 +1477,48 @@ input:checked+.slider:before {
     display: flex;
     flex-direction: column;
     align-items: center;
+    justify-content: start;
     gap: 4px;
+    height: 70px;
+    /* 固定高度，不会因内容变化而撑高 */
+    box-sizing: border-box;
+    position: relative;
 }
 
 .stat-label {
     font-size: 12px;
     color: var(--item-desc-color);
     font-weight: 500;
+    flex-shrink: 0;
+    transform: translateY(-5px);
 }
 
 .stat-val {
-    font-size: 15px;
+    font-size: 16px;
     font-weight: 700;
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
     color: var(--speed-value);
+    white-space: nowrap;
+    /* 数值不会换行 */
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+    flex-shrink: 0;
+    transform: translateY(-5px);
+}
+
+.stat-unit {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--item-desc-color);
+    opacity: 0.7;
+    flex-shrink: 0;
+    position: absolute;
+    bottom: 3px;
+    background: var(--data-tag-bg);
+    color: var(--data-tag-color);
+    padding: 1px 5px;
+    border-radius: 4px;
 }
 
 .stats-chart-container {
