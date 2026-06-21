@@ -153,7 +153,7 @@
 
                     <div class="set-item">
                         <div class="set-item-meta">
-                            <span class="set-item-title">音乐控制器</span>
+                            <span class="set-item-title">音乐控制器 <p class="set-item-new-tag">NEW</p></span>
                             <span class="set-item-desc">检测到音乐播放时展示控制面板</span>
                         </div>
                         <label class="switch">
@@ -175,7 +175,7 @@
 
                     <div class="set-item disabled-set-item">
                         <div class="set-item-meta">
-                            <span class="set-item-title">系统硬件监控</span>
+                            <span class="set-item-title">系统硬件监控 <p class="set-item-pro-tag">PRO</p></span>
                             <span class="set-item-desc">显示 CPU / 内存占用情况预警</span>
                         </div>
                         <label class="switch">
@@ -1396,6 +1396,17 @@ input:checked+.slider:before {
     font-weight: 600;
     color: var(--btn-pri-color);
     background: var(--btn-pri-bg);
+    padding: 2px 6px;
+    border-radius: 4px;
+    margin-left: 6px;
+    max-height: 24px;
+}
+
+.set-item-new-tag {
+    font-size: 11px;
+    font-weight: 600;
+    color: #dd1f1f;
+    background: #b9101020;
     padding: 2px 6px;
     border-radius: 4px;
     margin-left: 6px;
