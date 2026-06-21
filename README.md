@@ -2,8 +2,9 @@
 
 一款基于 **Tauri 2 + Vue 3** 构建的桌面动态网速监控工具，提供灵动岛风格的悬浮窗实时显示网络速度，并支持流量数据统计分析、灵动岛个性化设置与网易云音乐控制。
 
-![NetSpeed Dynamic 效果图](./src/assets/screenshot.png)
 ![NetSpeed Dynamic 效果图](./src/assets/screenshot2.png)
+![NetSpeed Dynamic 效果图](./src/assets/screenshot3.png)
+![NetSpeed Dynamic 效果图](./src/assets/screenshot.png)
 
 ## 功能特性
 
