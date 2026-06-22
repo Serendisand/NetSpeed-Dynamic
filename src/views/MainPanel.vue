@@ -4,7 +4,7 @@
             <div class="brand">
                 <img src="../assets/logo.png" class="logo-icon">
                 <div>
-                    <h1>NetSpeed Dynamic</h1>
+                    <h1>NetSpeed Dynamic Pro</h1>
                     <p class="subtitle">NSD 桌面动态组件 v{{ appVersion }}</p>
                 </div>
             </div>
@@ -158,7 +158,6 @@
                                 <span class="tooltip-wrapper" data-tooltip="若要使用此功能请将网易云音乐最小化或保持窗口，请不要关闭窗口！">
                                     <p class="set-item-tips-tag">🙋‍♂️</p>
                                 </span>
-                                <p class="set-item-new-tag">NEW</p>
                             </span>
                             <span class="set-item-desc">支持网易云音乐控制及歌曲信息显示</span>
                         </div>
@@ -181,7 +180,9 @@
 
                     <div class="set-item disabled-set-item">
                         <div class="set-item-meta">
-                            <span class="set-item-title">系统硬件监控 <p class="set-item-pro-tag">PRO</p></span>
+                            <span class="set-item-title">系统硬件监控 <p class="set-item-pro-tag">PRO</p>
+                                <p class="set-item-pro-tag">即将推出</p>
+                            </span>
                             <span class="set-item-desc">显示 CPU / 内存占用情况预警</span>
                         </div>
                         <label class="switch">

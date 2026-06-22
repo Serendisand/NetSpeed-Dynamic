@@ -368,6 +368,7 @@ pub fn run() {
             // 3. 【构建系统托盘】
             let _tray = TrayIconBuilder::new()
                 .icon(app.default_window_icon().unwrap().clone()) // 使用默认图标
+                .tooltip("NetSpeed Dynamic Pro")
                 .menu(&tray_menu)
                 .on_menu_event(move |_app_handle, event| {
                     if event.id == "quit" {
