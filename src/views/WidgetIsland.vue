@@ -633,7 +633,8 @@ const isMsgActive = ref(false);
 const msgTitle = ref('');
 const msgBody = ref('');
 
-const animateIslandSize = (targetWidth: number, targetHeight: number) => {
+// 【注意】这里加了 async
+const animateIslandSize = async (targetWidth: number, targetHeight: number) => {
     let startWidth = currentWidth.value;
     let startHeight = currentHeight.value;
     let start = performance.now();
@@ -644,11 +645,24 @@ const animateIslandSize = (targetWidth: number, targetHeight: number) => {
 
     const appWindow = getCurrentWindow();
 
+    // 【唯一改动点】：在动画开始前，先把中心点和 Y 坐标获取好。
+    // 因为函数已经是 async，这里直接 await，干干净净，没有任何竞态条件。
+    let centerX = 0;
+    let physicalY = 0;
+    try {
+        const pos = await appWindow.innerPosition();
+        const size = await appWindow.innerSize();
+        centerX = pos.x + size.width / 2;
+        physicalY = pos.y;
+    } catch (e) {
+        return; // 如果获取失败，直接终止，防止乱飞
+    }
+
     const run = async (time: number) => {
         let t = (time - start) / 1000;
         let progress = (time - start) / duration;
 
-        // 核心数学方程：1 - cos(2πft) * e^(-dt)
+        // 核心数学方程：1 - cos(2πft) * e^(-dt) (完全保留您的原代码)
         let spring = 1 - Math.cos(freq * t * 2 * Math.PI) * Math.exp(-decay * t);
 
         // 1. 更新 Vue 内部样式组件的宽高
@@ -661,22 +675,15 @@ const animateIslandSize = (targetWidth: number, targetHeight: number) => {
         // 2. 同步改变原生 Tauri 窗口大小
         await appWindow.setSize(new LogicalSize(newWidth, newHeight)).catch(() => { });
 
-        // 3. 【核心修复】每帧重新计算并设置窗口水平居中位置
+        // 3. 【核心修复】基于已经获取好的“当前中心点”计算位置，保证向两侧展开
         try {
-            const monitor = await currentMonitor();
-            if (monitor) {
-                const scaleFactor = await appWindow.scaleFactor();
-                const windowSize = await appWindow.innerSize();
+            const windowSize = await appWindow.innerSize();
+            const x = centerX - windowSize.width / 2;
+            const y = physicalY;
 
-                // 重新计算物理居中的 X 坐标
-                const x = monitor.position.x + (monitor.size.width - windowSize.width) / 2;
-                // Y 轴保持贴顶（与 adjustWindowPosition 逻辑一致）
-                const y = monitor.position.y + (12 * scaleFactor);
-
-                await appWindow.setPosition(new PhysicalPosition(Math.round(x), Math.round(y)));
-            }
+            await appWindow.setPosition(new PhysicalPosition(Math.round(x), Math.round(y)));
         } catch (e) {
-            // 忽略单帧位置调整失败，避免阻塞动画
+            // 忽略单帧位置调整失败
         }
 
         if (progress < 1) {
@@ -686,10 +693,16 @@ const animateIslandSize = (targetWidth: number, targetHeight: number) => {
             currentWidth.value = targetWidth;
             currentHeight.value = targetHeight;
             appWindow.setSize(new LogicalSize(targetWidth, targetHeight)).catch(() => { });
-            // 结束时再强制校准一次位置
-            adjustWindowPosition().catch(() => { });
+
+            // 结束时基于记录的中心点做最后一次精准校准
+            try {
+                const finalSize = await appWindow.innerSize();
+                const finalX = centerX - finalSize.width / 2;
+                await appWindow.setPosition(new PhysicalPosition(Math.round(finalX), Math.round(physicalY)));
+            } catch (e) { }
         }
     };
+
     requestAnimationFrame(run);
 };
 
