@@ -183,7 +183,7 @@ const isMusicCtlEnabled = ref(localStorage.getItem('nsd_music_ctrl') === 'true')
 const isPlaying = ref(false);
 let isClickingToggle = false;
 // 流光边框默认状态完全镜像音乐控制器（只要音乐控制器开着它就开，关了就一起关）
-const isGlowBorderEnabled = ref(isMusicCtlEnabled.value);
+const isGlowBorderEnabled = ref(localStorage.getItem('nsd_glow_border') === 'true');
 
 const coverUrl = ref('');
 const coverCache = new Map<string, string>();
@@ -527,9 +527,11 @@ const handleRightClick = async (event: MouseEvent) => {
     const toggleGlowBorderItem = await MenuItem.new({
         text: isGlowBorderEnabled.value ? '关闭流光边框' : '开启流光边框',
         id: 'toggle_glow_border',
-        enabled: isMusicCtlEnabled.value, // 核心约束：只有在音乐控制器开着的前提下，菜单才允许点击切换
+        enabled: true, // 改为 true，让你随时都可以点
         action: () => {
             isGlowBorderEnabled.value = !isGlowBorderEnabled.value;
+            // 新增一行：把你切换后的状态存到本地电脑里
+            localStorage.setItem('nsd_glow_border', String(isGlowBorderEnabled.value));
         }
     });
 
@@ -652,7 +654,7 @@ const handleMsgClick = async () => {
             // 听 Tauri 的话，这里必须用驼峰命名的 appName
             await invoke('open_app_by_aumid', {
                 aumid: msgAumid.value,
-                appName: msgTitle.value 
+                appName: msgTitle.value
             });
 
             isMsgActive.value = false;
@@ -758,10 +760,13 @@ onMounted(async () => {
         const isEnabled = event.payload.enabled;
         isMusicCtlEnabled.value = isEnabled;
 
-        // 核心联动：只要触发了开关指令，流光边框无视之前的状态，强行跟随最新开关状态
-        isGlowBorderEnabled.value = isEnabled;
-
         if (isEnabled) {
+            // 👇 新增：判断是不是“首次”（本地有没有存过流光边框的数据）
+            if (localStorage.getItem('nsd_glow_border') === null) {
+                isGlowBorderEnabled.value = true; // 自动开启流光边框
+                localStorage.setItem('nsd_glow_border', 'true'); // 存入记忆，以后就不算“首次”了
+            }
+
             showInfo.value = false;
             musicBoxKey.value++;
             stopHideTimer();
