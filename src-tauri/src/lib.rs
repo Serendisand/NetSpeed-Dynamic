@@ -352,16 +352,33 @@ fn open_app_by_aumid(aumid: String, app_name: String) {
 #[tauri::command]
 fn force_window_topmost(app: tauri::AppHandle) {
     #[cfg(target_os = "windows")]
-    if let Some(win) = app.get_webview_window("widget") {
-        if let Ok(hwnd) = win.hwnd() {
-            unsafe {
-                // 直接调用 Windows 底层 API，-1 代表 HWND_TOPMOST，3 代表 SWP_NOMOVE | SWP_NOSIZE
-                winapi::um::winuser::SetWindowPos(
-                    hwnd.0 as _,
-                    -1isize as _, 
-                    0, 0, 0, 0,
-                    3, 
-                );
+    {
+        unsafe {
+            // 1. 优雅避让：检测当前是否存在右键菜单
+            let fg_hwnd = winapi::um::winuser::GetForegroundWindow();
+            if !fg_hwnd.is_null() {
+                let mut class_name = [0u16; 256];
+                let len = winapi::um::winuser::GetClassNameW(fg_hwnd, class_name.as_mut_ptr(), class_name.len() as i32);
+                let class_str = String::from_utf16_lossy(&class_name[..len as usize]);
+                
+                // #32768 是 Windows 系统标准右键菜单的底层类名
+                if class_str == "#32768" {
+                    return; // 如果发现前台正在展示右键菜单，立刻收手不置顶，保护菜单不被遮挡！
+                }
+            }
+
+            // 2. 静默置顶：彻底解决抢占焦点的问题
+            if let Some(win) = app.get_webview_window("widget") {
+                if let Ok(hwnd) = win.hwnd() {
+                    winapi::um::winuser::SetWindowPos(
+                        hwnd.0 as _,
+                        -1isize as _, 
+                        0, 0, 0, 0,
+                        // 核心魔法数字 19 = SWP_NOACTIVATE (16) | SWP_NOMOVE (2) | SWP_NOSIZE (1)
+                        // SWP_NOACTIVATE 代表“仅调整层级，绝对不触碰当前焦点”，神不知鬼不觉
+                        19, 
+                    );
+                }
             }
         }
     }

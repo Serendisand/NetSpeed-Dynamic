@@ -196,7 +196,7 @@
                             <span class="set-item-desc">将灵动岛锁定至任务栏左下角</span>
                         </div>
                         <label class="switch">
-                            <input type="checkbox" v-model="disableBtn">
+                            <input type="checkbox" v-model="pinToTaskbar" @change="togglePinTaskbar">
                             <span class="slider"></span>
                         </label>
                     </div>
@@ -276,8 +276,15 @@ const islandTheme = ref(localStorage.getItem('nsd_island_theme') || 'black');
 const enableMusicCtrl = ref(localStorage.getItem('nsd_music_ctrl') === 'true');
 const enableMsgNotify = ref(localStorage.getItem('nsd_msg_notify') === 'true');
 const enableHardwareMon = ref(localStorage.getItem('nsd_hardware_mon') === 'true');
-const disableBtn = ref(false);
 let wasMusicEnabledBeforeHardware = false;
+
+// 置于任务栏状态，默认从本地存储读取
+const pinToTaskbar = ref(localStorage.getItem('nsd_pin_taskbar') === 'true');
+// 切换开关时保存本地并发送信号给灵动岛
+const togglePinTaskbar = async () => {
+    localStorage.setItem('nsd_pin_taskbar', String(pinToTaskbar.value));
+    await emit('control-pin-taskbar', { enabled: pinToTaskbar.value });
+};
 
 // 新增切换保存方法
 const toggleMsgNotify = () => {

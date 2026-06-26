@@ -118,6 +118,7 @@ import { Menu, MenuItem } from '@tauri-apps/api/menu';
 import { listen, emit } from '@tauri-apps/api/event';
 
 const isIslandVisible = ref(false);
+const isMenuOpen = ref(false);
 
 // 灵动岛自身的透明度变量（默认100）
 const islandOpacity = ref(Number(localStorage.getItem('nsd_island_opacity') || '100'));
@@ -187,6 +188,50 @@ const isGlowBorderEnabled = ref(localStorage.getItem('nsd_glow_border') === 'tru
 
 const coverUrl = ref('');
 const coverCache = new Map<string, string>();
+
+// 记录是否开启了置于任务栏
+const isPinnedToTaskbar = ref(localStorage.getItem('nsd_pin_taskbar') === 'true');
+
+// 计算并吸附到左下角的方法
+const snapToBottomLeft = async () => {
+    try {
+        const appWindow = getCurrentWindow();
+        await new Promise((resolve) => setTimeout(resolve, 150));
+        const monitor = await currentMonitor();
+
+        if (monitor) {
+            const scaleFactor = await appWindow.scaleFactor();
+
+            const WINDOW_INIT_WIDTH = currentWidth.value;
+            const WINDOW_INIT_HEIGHT = currentHeight.value;
+            await appWindow.setSize(new LogicalSize(WINDOW_INIT_WIDTH, WINDOW_INIT_HEIGHT));
+
+            const monitorLeftPhysical = monitor.position.x;
+            const monitorTopPhysical = monitor.position.y;
+            // 恢复使用 Tauri 最底层的硬件真实分辨率（绝对不会缩水）
+            const monitorHeightPhysical = monitor.size.height;
+
+            // X坐标: 屏幕最左侧 + 10px的边距
+            const x = monitorLeftPhysical + (10 * scaleFactor);
+            // Y坐标: 物理最底部 - 窗口高度 - 3px微调
+            const y = monitorTopPhysical + monitorHeightPhysical - ((WINDOW_INIT_HEIGHT + 3) * scaleFactor);
+
+            // 【终极绝杀核心】：绕过 Windows 系统的任务栏防遮挡机制
+            // 在强制覆盖任务栏坐标之前，先隐身！
+            await appWindow.hide();
+
+            await appWindow.setPosition(new PhysicalPosition(Math.round(x), Math.round(y)));
+
+            // 移动完成后，瞬间现身，生米煮成熟饭，Windows 也拦不住了！
+            await appWindow.show();
+
+            trackedPhysicalX = Math.round(x);
+            trackedPhysicalY = Math.round(y);
+        }
+    } catch (error) {
+        console.error('停靠左下角失败:', error);
+    }
+};
 
 const togglePlay = async () => {
     isPlaying.value = !isPlaying.value;
@@ -490,6 +535,9 @@ const onLeave = (el: Element, done: () => void) => {
 };
 
 const handleMouseDown = async (event: MouseEvent) => {
+    // 【新增的核心锁定逻辑】：如果开启了置于任务栏，直接拦截，禁止任何拖拽！
+    if (isPinnedToTaskbar.value) return;
+
     // 如果点击的是按钮或按钮内部的 SVG 图标，直接返回，不触发拖拽
     if ((event.target as HTMLElement).closest('.ctl-btn')) return;
 
@@ -516,10 +564,10 @@ const handleRightClick = async (event: MouseEvent) => {
 
     // 创建“重置位置”菜单项
     const resetPositionItem = await MenuItem.new({
-        text: '重置位置',
+        text: isPinnedToTaskbar.value ? '重置位置 (已锁定)' : '重置位置',
         id: 'reset_position',
+        enabled: !isPinnedToTaskbar.value, // 核心逻辑：开启置于任务栏时，禁用此按钮
         action: () => {
-            // 点击后直接调用你原本写好的位置调整逻辑
             adjustWindowPosition().catch(console.error);
         }
     });
@@ -558,9 +606,12 @@ const handleRightClick = async (event: MouseEvent) => {
 
     // 4. 弹出菜单
     try {
+        isMenuOpen.value = true; // 👈 弹出前，告诉系统菜单打开了
         await menu.popup(position);
     } catch (error) {
         console.error('菜单弹出失败:', error);
+    } finally {
+        isMenuOpen.value = false; // 👈 无论用户是点击了菜单，还是点空白处取消了，都会瞬间恢复置顶状态
     }
 };
 
@@ -783,6 +834,16 @@ onMounted(async () => {
         islandTheme.value = event.payload.theme;
     });
 
+    // 监听置于任务栏开关
+    await listen<{ enabled: boolean }>('control-pin-taskbar', async (event) => {
+        isPinnedToTaskbar.value = event.payload.enabled;
+        if (isPinnedToTaskbar.value) {
+            await snapToBottomLeft(); // 开启时：飞到左下角
+        } else {
+            await adjustWindowPosition(); // 关闭时：等同于点击“重置位置”，飞回顶部居中
+        }
+    });
+
     // 初始化位置追踪
     const appWindow = getCurrentWindow();
     try {
@@ -798,7 +859,12 @@ onMounted(async () => {
         trackedPhysicalY = event.payload.y;
     }).catch(() => { });
 
-    await adjustWindowPosition();
+    // 根据本地记录决定启动时出现在哪
+    if (isPinnedToTaskbar.value) {
+        await snapToBottomLeft();
+    } else {
+        await adjustWindowPosition();
+    }
 
     // 先显示透明的 Tauri 窗口，再触发 Vue 的灵动岛入场弹簧动画
     await getCurrentWindow().show();
@@ -814,8 +880,8 @@ onMounted(async () => {
 
     // 在你原有的每秒刷新定时器中，顺带执行音乐同步
     speedTimer = setInterval(async () => {
-        // 👇 彻底修复：绕过 Tauri 缓存，每秒向 Windows 底层强行索要一次最高置顶权
-        if (isIslandVisible.value) {
+        // 如果灵动岛可见，且【右键菜单没有打开】，才去呼叫底层置顶
+        if (isIslandVisible.value && !isMenuOpen.value) {
             invoke('force_window_topmost').catch(() => { });
         }
 
@@ -865,12 +931,16 @@ onMounted(async () => {
 
                     if (!isMsgActive.value) {
                         isMsgActive.value = true;
-                        animateIslandSize(360, 65);
+                        // 👇 新增拦截：如果没有锁定在任务栏，才允许灵动岛变大
+                        if (!isPinnedToTaskbar.value) {
+                            animateIslandSize(360, 65);
+                        }
                     }
 
                     if ((window as any).msgTimer) clearTimeout((window as any).msgTimer);
                     (window as any).msgTimer = setTimeout(() => {
                         isMsgActive.value = false;
+                        // 💡 恢复时不需要加判断。如果它在任务栏(没变大)，这个恢复指令就等于“原地不动”，非常安全！
                         animateIslandSize(260, 42);
                     }, 5000);
                 }
