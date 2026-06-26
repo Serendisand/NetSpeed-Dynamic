@@ -12,6 +12,8 @@
 ![NetSpeed Dynamic 效果图](./src/assets/screenshot6.png)
 **标准网速显示**
 ![NetSpeed Dynamic 效果图](./src/assets/screenshot.png)
+**置于任务栏**
+![NetSpeed Dynamic 效果图](./src/assets/screenshot7.png)
 
 ## 功能特性
 
