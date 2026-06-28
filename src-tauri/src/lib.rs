@@ -10,28 +10,14 @@ use std::sync::atomic::{AtomicU32, AtomicBool, Ordering};
 
 // --- WinAPI Imports ---
 use winapi::um::winuser::{
-    EnumWindows, GetClassNameW, GetWindowTextW, GetWindowThreadProcessId,
-    keybd_event, VK_MEDIA_NEXT_TRACK, VK_MEDIA_PLAY_PAUSE, VK_MEDIA_PREV_TRACK,
-    VK_MENU, KEYEVENTF_KEYUP, SW_SHOWNORMAL,
+    keybd_event, VK_MENU, KEYEVENTF_KEYUP, SW_SHOWNORMAL,
 };
-use winapi::shared::windef::{HWND, RECT};
-use winapi::shared::minwindef::{BOOL, LPARAM, TRUE, FALSE};
+use winapi::shared::windef::RECT;
 use std::os::windows::ffi::OsStrExt;
 use winapi::um::shellapi::ShellExecuteW;
 
-// --- Windows Crate Imports ---
-use windows::Win32::Media::Audio::{
-    eMultimedia, eRender, AudioSessionStateActive, IAudioSessionControl2, IAudioSessionManager2,
-    IMMDeviceEnumerator, MMDeviceEnumerator, 
-};
-use windows::Win32::Media::Audio::Endpoints::IAudioMeterInformation;
-use windows::Win32::System::Com::{CoInitializeEx, CLSCTX_ALL, COINIT_MULTITHREADED};
-use windows::core::Interface;
-
 static LAST_NOTIFICATION_ID: AtomicU32 = AtomicU32::new(0);
 static IS_NOTIF_INIT: AtomicBool = AtomicBool::new(false);
-// 👈 新增：记录应用最后一次发出声音的绝对时间
-static LAST_AUDIO_TIME: Mutex<Option<Instant>> = Mutex::new(None); 
 
 #[derive(serde::Serialize, Clone)]
 pub struct ToastData {
@@ -41,139 +27,83 @@ pub struct ToastData {
     pub aumid: String,
 }
 
-struct MusicInfo {
-    title: String,
-    pid: u32,
-}
+// --- 引入 SMTC 需要的模块 ---
+use windows::Media::Control::{
+    GlobalSystemMediaTransportControlsSessionManager,
+    GlobalSystemMediaTransportControlsSessionPlaybackStatus,
+    GlobalSystemMediaTransportControlsSession,
+};
 
-unsafe extern "system" fn enum_windows_proc(hwnd: HWND, lparam: LPARAM) -> BOOL {
-    let mut class_name = [0u16; 256];
-    let len = GetClassNameW(hwnd, class_name.as_mut_ptr(), class_name.len() as i32);
-    let class_str = String::from_utf16_lossy(&class_name[..len as usize]);
+// 💡 【这里就是后路】：专门用来寻找你要控制的那个软件
+fn get_target_media_session() -> Option<GlobalSystemMediaTransportControlsSession> {
+    // 获取系统的媒体控制器管理器
+    let manager = GlobalSystemMediaTransportControlsSessionManager::RequestAsync()
+        .ok()?.get().ok()?;
+    
+    // 获取当前所有在播放或注册了媒体的软件列表
+    let sessions = manager.GetSessions().ok()?;
 
-    if class_str.contains("Orpheus") || class_str.contains("CloudMusic") {
-        let mut title = [0u16; 512];
-        let len = GetWindowTextW(hwnd, title.as_mut_ptr(), title.len() as i32);
-        let title_str = String::from_utf16_lossy(&title[..len as usize]);
-        let clean_title = title_str.trim_matches('\0').trim().to_string();
-
-        if !clean_title.is_empty() && clean_title != "网易云音乐" && clean_title != "DesktopLyric" {
-            let mut pid = 0;
-            GetWindowThreadProcessId(hwnd, &mut pid);
-
-            let info = &mut *(lparam as *mut MusicInfo);
-            info.title = clean_title;
-            info.pid = pid; 
-            return FALSE; 
-        }
-    }
-    TRUE 
-}
-
-// 核心重构：不仅查激活状态，更查“音轨分贝”！
-unsafe fn is_process_playing_audio(target_pid: u32) -> bool {
-    let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
-
-    let enumerator: IMMDeviceEnumerator = match windows::Win32::System::Com::CoCreateInstance(
-        &MMDeviceEnumerator, None, CLSCTX_ALL,
-    ) {
-        Ok(e) => e, Err(_) => return false,
-    };
-
-    let device = match enumerator.GetDefaultAudioEndpoint(eRender, eMultimedia) {
-        Ok(d) => d, Err(_) => return false,
-    };
-
-    let manager: IAudioSessionManager2 = match device.Activate(CLSCTX_ALL, None) {
-        Ok(m) => m, Err(_) => return false,
-    };
-
-    let session_enum = match manager.GetSessionEnumerator() {
-        Ok(s) => s, Err(_) => return false,
-    };
-
-    let count = session_enum.GetCount().unwrap_or(0);
-    let mut is_making_sound = false;
-
-    for i in 0..count {
-        if let Ok(session) = session_enum.GetSession(i) {
-            if let Ok(session2) = session.cast::<IAudioSessionControl2>() {
-                if let Ok(pid) = session2.GetProcessId() {
-                    if pid == target_pid {
-                        if let Ok(state) = session2.GetState() {
-                            if state == AudioSessionStateActive {
-                                // 终极杀招：直接把音频会话强制转换为“声卡分贝仪”
-                                if let Ok(meter) = session.cast::<IAudioMeterInformation>() {
-                                    // 修复：完美适配 windows 0.58.0 版本的返回值签名
-                                    if let Ok(peak) = meter.GetPeakValue() {
-                                        // 哪怕只有极其微弱的声音 (振幅 > 0.0001)，也说明在发声
-                                        if peak > 0.0001 {
-                                            is_making_sound = true;
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
+    for session in sessions {
+        // 获取软件的标识符 (AUMID)
+        if let Ok(app_id) = session.SourceAppUserModelId() {
+            let app_id_str = app_id.to_string().to_lowercase();
+            
+            // 🎯 目前只锁定网易云音乐 (包含 cloudmusic 或 netease)
+            // 以后你要加 Spotify 或 QQ音乐，直接在这里加 || app_id_str.contains("qqmusic") 即可
+            if app_id_str.contains("cloudmusic") || app_id_str.contains("netease") {
+                return Some(session);
             }
         }
     }
-
-    if is_making_sound {
-        // 更新最后一次发声时间
-        if let Ok(mut last_time) = LAST_AUDIO_TIME.lock() {
-            *last_time = Some(Instant::now());
-        }
-        return true;
-    } else {
-        // 如果此刻振幅跌至 0，给 2 秒的“静音宽限期”（防止歌曲本身的安静片段导致图标跳跃）
-        if let Ok(last_time) = LAST_AUDIO_TIME.lock() {
-            if let Some(time) = *last_time {
-                if time.elapsed().as_secs() < 2 {
-                    return true;
-                }
-            }
-        }
-    }
-    false
+    None
 }
 
 #[tauri::command]
 async fn fetch_netease_music_info() -> Result<Option<(String, String, bool)>, String> {
-    let mut info = MusicInfo { title: String::new(), pid: 0 };
-    
-    unsafe {
-        EnumWindows(Some(enum_windows_proc), &mut info as *mut _ as LPARAM);
-    }
+    // 1. 找到网易云音乐的进程
+    let session = match get_target_media_session() {
+        Some(s) => s,
+        None => return Ok(None), // 没找到网易云，说明没开或者没在播放
+    };
 
-    if info.title.is_empty() {
+    // 2. 获取播放状态 (是播放还是暂停)
+    let is_playing = if let Ok(playback_info) = session.GetPlaybackInfo() {
+        if let Ok(status) = playback_info.PlaybackStatus() {
+            status == GlobalSystemMediaTransportControlsSessionPlaybackStatus::Playing
+        } else {
+            false
+        }
+    } else {
+        false
+    };
+
+    // 3. 获取歌曲属性 (歌名、歌手)
+    let properties = session.TryGetMediaPropertiesAsync()
+        .map_err(|e| e.to_string())?
+        .get()
+        .map_err(|e| e.to_string())?;
+
+    let title = properties.Title().unwrap_or_default().to_string();
+    let artist = properties.Artist().unwrap_or_default().to_string();
+
+    if title.is_empty() {
         return Ok(None);
     }
 
-    // 调用终极测音轨函数
-    let is_playing = unsafe { is_process_playing_audio(info.pid) };
-
-    let parts: Vec<&str> = info.title.splitn(2, " - ").collect();
-    let song_name = parts[0].to_string();
-    let artist_name = if parts.len() > 1 { parts[1].to_string() } else { "未知歌手".to_string() };
-
-    Ok(Some((song_name, artist_name, is_playing)))
+    Ok(Some((title, artist, is_playing)))
 }
-
-// ============== 下面的代码跟你原来一模一样，原封不动 ==============
 
 #[tauri::command]
 async fn control_system_media(action: String) -> Result<(), String> {
-    unsafe {
-        let vk = match action.as_str() {
-            "play_pause" => VK_MEDIA_PLAY_PAUSE,
-            "next" => VK_MEDIA_NEXT_TRACK,
-            "prev" => VK_MEDIA_PREV_TRACK,
-            _ => return Ok(()),
-        };
-        keybd_event(vk as u8, 0, 0, 0);
-        keybd_event(vk as u8, 0, KEYEVENTF_KEYUP, 0);
+    // 1. 精准找到网易云音乐
+    if let Some(session) = get_target_media_session() {
+        // 2. 直接对它发送指令，绝不干扰别的软件！
+        match action.as_str() {
+            "play_pause" => { let _ = session.TryTogglePlayPauseAsync(); },
+            "next" => { let _ = session.TrySkipNextAsync(); },
+            "prev" => { let _ = session.TrySkipPreviousAsync(); },
+            _ => {}
+        }
     }
     Ok(())
 }

@@ -26,19 +26,19 @@
                             <div class="hw-item">
                                 <span class="hw-label">CPU</span>
                                 <span class="hw-value" :class="{ 'high-usage': parseInt(cpuUsage) >= 90 }">{{ cpuUsage
-                                    }}</span>
+                                }}</span>
                             </div>
                             <div class="hw-divider"></div>
                             <div class="hw-item">
                                 <span class="hw-label">GPU</span>
                                 <span class="hw-value" :class="{ 'high-usage': parseInt(gpuUsage) >= 90 }">{{ gpuUsage
-                                    }}</span>
+                                }}</span>
                             </div>
                             <div class="hw-divider"></div>
                             <div class="hw-item">
                                 <span class="hw-label">RAM</span>
                                 <span class="hw-value" :class="{ 'high-usage': parseInt(memUsage) >= 90 }">{{ memUsage
-                                    }}</span>
+                                }}</span>
                             </div>
                         </div>
                     </transition>
@@ -180,7 +180,6 @@ const memUsage = ref('0%');
 // 音乐控制功能开关
 const isMusicCtlEnabled = ref(localStorage.getItem('nsd_music_ctrl') === 'true');
 const isPlaying = ref(false);
-let isClickingToggle = false;
 // 流光边框默认状态完全镜像音乐控制器（只要音乐控制器开着它就开，关了就一起关）
 const isGlowBorderEnabled = ref(localStorage.getItem('nsd_glow_border') === 'true');
 
@@ -260,19 +259,17 @@ const snapToBottomLeft = async () => {
 };
 
 const togglePlay = async () => {
+    // 1. 前端先立刻切换图标，给用户极速的视觉反馈
     isPlaying.value = !isPlaying.value;
-    isClickingToggle = true; // 锁定 UI 不接受后端轮询的覆盖
+
+    // 2. 发送指令给 Rust 和 SMTC
     try {
         await invoke('control_system_media', { action: 'play_pause' });
     } catch (err) {
-        console.error(err);
+        console.error('播放控制失败:', err);
+        // 如果底层控制失败了，再把图标状态回滚回来
+        isPlaying.value = !isPlaying.value;
     }
-    setTimeout(() => {
-        // 👇 关键修改点：从 1500 延长到 2500。
-        // 这意味着你点完暂停的 2.5 秒内，图标死死卡住绝对不动。
-        // 2.5 秒后解锁时，后端的 2 秒静音宽限期必定已过，后端就会传来真实的 false（停止输出分贝）！
-        isClickingToggle = false;
-    }, 2500);
 };
 
 const prevTrack = async () => {
@@ -319,9 +316,7 @@ const syncMusicStatus = async () => {
                 }
             }
 
-            if (!isClickingToggle) {
-                isPlaying.value = playing;
-            }
+            isPlaying.value = playing;
         } else {
             // 没检测到播放时，清空状态
             currentTrackInfo.value = '未在播放歌曲 - 网易云音乐';
