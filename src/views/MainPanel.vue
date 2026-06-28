@@ -153,12 +153,7 @@
 
                     <div class="set-item">
                         <div class="set-item-meta">
-                            <span class="set-item-title">
-                                音乐控制器
-                                <span class="tooltip-wrapper" data-tooltip="若要使用此功能请将网易云音乐最小化或保持窗口，请不要关闭窗口！">
-                                    <p class="set-item-tips-tag">🙋‍♂️</p>
-                                </span>
-                            </span>
+                            <span class="set-item-title">音乐控制器</span>
                             <span class="set-item-desc">支持网易云音乐控制及歌曲信息显示</span>
                         </div>
                         <label class="switch">

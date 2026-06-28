@@ -10,7 +10,7 @@ use std::sync::atomic::{AtomicU32, AtomicBool, Ordering};
 
 // --- WinAPI Imports ---
 use winapi::um::winuser::{
-    EnumWindows, GetClassNameW, GetWindowTextW, GetWindowThreadProcessId, IsWindowVisible,
+    EnumWindows, GetClassNameW, GetWindowTextW, GetWindowThreadProcessId,
     keybd_event, VK_MEDIA_NEXT_TRACK, VK_MEDIA_PLAY_PAUSE, VK_MEDIA_PREV_TRACK,
     VK_MENU, KEYEVENTF_KEYUP, SW_SHOWNORMAL,
 };
@@ -47,10 +47,6 @@ struct MusicInfo {
 }
 
 unsafe extern "system" fn enum_windows_proc(hwnd: HWND, lparam: LPARAM) -> BOOL {
-    if IsWindowVisible(hwnd) == 0 {
-        return TRUE;
-    }
-
     let mut class_name = [0u16; 256];
     let len = GetClassNameW(hwnd, class_name.as_mut_ptr(), class_name.len() as i32);
     let class_str = String::from_utf16_lossy(&class_name[..len as usize]);
