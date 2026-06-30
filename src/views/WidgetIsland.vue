@@ -27,19 +27,19 @@
                             <div class="hw-item">
                                 <span class="hw-label">CPU</span>
                                 <span class="hw-value" :class="{ 'high-usage': parseInt(cpuUsage) >= 90 }">{{ cpuUsage
-                                    }}</span>
+                                }}</span>
                             </div>
                             <div class="hw-divider"></div>
                             <div class="hw-item">
                                 <span class="hw-label">GPU</span>
                                 <span class="hw-value" :class="{ 'high-usage': parseInt(gpuUsage) >= 90 }">{{ gpuUsage
-                                    }}</span>
+                                }}</span>
                             </div>
                             <div class="hw-divider"></div>
                             <div class="hw-item">
                                 <span class="hw-label">RAM</span>
                                 <span class="hw-value" :class="{ 'high-usage': parseInt(memUsage) >= 90 }">{{ memUsage
-                                    }}</span>
+                                }}</span>
                             </div>
                         </div>
                     </transition>
@@ -1396,7 +1396,7 @@ onUnmounted(() => {
     box-shadow: 0 0 10px rgba(255, 255, 255, 0.250);
     transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
     z-index: 2;
-    transform: translateX(-5px);
+    transform: translateX(-8px);
     /* 确保层级比控制器高 */
 }
 
@@ -1406,7 +1406,7 @@ onUnmounted(() => {
 }
 
 .album-cover.is-playing {
-    transform: scale(1.08) translateX(-5px);
+    transform: scale(1.08) translateX(-8px);
 }
 
 /* 封面内部绑定背景图的 div */
@@ -1514,9 +1514,9 @@ onUnmounted(() => {
 /* 歌曲信息遮罩容器：挨着封面靠左，占据右侧剩余空间 */
 .music-info-mask-box {
     position: absolute;
-    left: 24px;
+    left: 20px;
     /* 紧贴 24px 宽的专辑封面 */
-    right: 20px;
+    right: 18px;
     /* 给右侧网络指示灯留出安全间距 */
     height: 100%;
     display: flex;
@@ -1525,11 +1525,11 @@ onUnmounted(() => {
     padding-left: 8px;
     -webkit-app-region: no-drag;
     /* 允许在文本区域触发 hover */
-    transform: translateY(-1px);
+    transform: translateY(-1px) translateX(-0.5px);
 
     /* 核心过渡遮罩：右侧文字溢出边缘呈渐隐效果 */
-    mask-image: linear-gradient(to right, #000 75%, transparent 100%);
-    -webkit-mask-image: linear-gradient(to right, #000 75%, transparent 100%);
+    mask-image: linear-gradient(to right, #000000 75%, transparent 100%);
+    -webkit-mask-image: linear-gradient(to right, #000000 75%, transparent 100%);
 }
 
 /* 歌曲文本基础样式 */
