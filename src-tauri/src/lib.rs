@@ -39,10 +39,16 @@ static TARGET_PLAYER: std::sync::Mutex<String> = std::sync::Mutex::new(String::n
 
 // --- 全功能灵动岛智能双模动画锁 ---
 static ANIMATION_ID: AtomicU32 = AtomicU32::new(0);
-static ANIMATION_CENTER_X: Mutex<Option<i32>> = Mutex::new(None);
-static ANIMATION_ORIGIN_Y: Mutex<Option<i32>> = Mutex::new(None);
-static ANIMATION_LEFT_X: Mutex<Option<i32>> = Mutex::new(None);
-static ANIMATION_BOTTOM_Y: Mutex<Option<i32>> = Mutex::new(None);
+
+// 将分散的坐标合并为一个结构体，并附带所有权 ID 防止误删
+struct AnchorState {
+    center_x: i32,
+    origin_y: i32,
+    left_x: i32,
+    bottom_y: i32,
+    active_id: u32,
+}
+static ANIMATION_ANCHOR: Mutex<Option<AnchorState>> = Mutex::new(None);
 
 // 👇 新增：给前端调用的切换接口
 #[tauri::command]
@@ -61,7 +67,7 @@ fn get_target_media_session() -> Option<GlobalSystemMediaTransportControlsSessio
 
     // 获取当前的目标（前端如果还没传，默认用 netease）
     let target = {
-        let guard = TARGET_PLAYER.lock().unwrap();
+        let guard = TARGET_PLAYER.lock().unwrap_or_else(|e| e.into_inner()); // 加入防中毒
         if guard.is_empty() { "netease".to_string() } else { guard.clone() }
     };
 
@@ -478,7 +484,7 @@ async fn start_island_animation(
     start_height: f64,
     target_width: f64,
     target_height: f64,
-    is_pinned: bool, // 接收前端的置于任务栏状态
+    is_pinned: bool,
 ) -> Result<(), String> {
     let id = ANIMATION_ID.fetch_add(1, Ordering::SeqCst) + 1;
     let scale_factor = window.scale_factor().unwrap_or(1.0);
@@ -492,28 +498,44 @@ async fn start_island_animation(
             let mut rect: RECT = unsafe { std::mem::zeroed() };
             unsafe { GetWindowRect(hwnd.0 as _, &mut rect); }
 
-            // 首次启动动画时，锁死当前的物理锚点，防止多重打断时发生坐标漂移
-            if ANIMATION_CENTER_X.lock().unwrap().is_none() {
-                *ANIMATION_CENTER_X.lock().unwrap() = Some(rect.left + (rect.right - rect.left) / 2);
-                *ANIMATION_ORIGIN_Y.lock().unwrap() = Some(rect.top);
-                *ANIMATION_LEFT_X.lock().unwrap() = Some(rect.left);
-                *ANIMATION_BOTTOM_Y.lock().unwrap() = Some(rect.bottom);
-            }
+            // 核心修复 1：在主线程安全地获取并克隆锚点值，避免进入子线程后再 unwrap
+            let (anchor_cx, anchor_cy, anchor_lx, anchor_by) = {
+                // 使用 unwrap_or_else 防止之前的 Panic 导致锁中毒
+                let mut anchor_guard = ANIMATION_ANCHOR.lock().unwrap_or_else(|e| e.into_inner());
+                
+                if let Some(anchor) = anchor_guard.as_mut() {
+                    // 已经有动画锚点，说明正在连续打断动画，继承坐标并刷新所有权 ID
+                    anchor.active_id = id;
+                    (anchor.center_x, anchor.origin_y, anchor.left_x, anchor.bottom_y)
+                } else {
+                    // 首次触发，设定新的物理锚点
+                    let cx = rect.left + (rect.right - rect.left) / 2;
+                    let cy = rect.top;
+                    let lx = rect.left;
+                    let by = rect.bottom;
+                    *anchor_guard = Some(AnchorState {
+                        center_x: cx,
+                        origin_y: cy,
+                        left_x: lx,
+                        bottom_y: by,
+                        active_id: id,
+                    });
+                    (cx, cy, lx, by)
+                }
+            };
 
             let window_clone = window.clone();
             let hwnd_raw = hwnd.0 as isize;
 
             std::thread::spawn(move || {
                 let start_time = std::time::Instant::now();
-                let duration = std::time::Duration::from_millis(400); // 400ms Snappy 高级回弹感
+                let duration = std::time::Duration::from_millis(400);
                 let freq = 2.4;
                 let decay = 12.0;
 
                 while start_time.elapsed() < duration {
-                    // 标准的线程休眠，约 8ms (目标 120FPS 刷新率)
                     std::thread::sleep(std::time::Duration::from_millis(8));
 
-                    // 检查是否被后面的新指令打断
                     if ANIMATION_ID.load(Ordering::SeqCst) != id {
                         return;
                     }
@@ -522,23 +544,18 @@ async fn start_island_animation(
                     let progress = elapsed / 0.4;
                     if progress >= 1.0 { break; }
 
-                    // 高阶标准弹簧衰减方程
                     let spring = 1.0 - (freq * elapsed * 2.0 * std::f64::consts::PI).cos() * (-decay * elapsed).exp();
                     let current_w = start_width + (target_width - start_width) * spring;
                     let current_h = start_height + (target_height - start_height) * spring;
 
-                    // 换算物理像素
                     let phys_window_w = (current_w * scale_factor).round() as i32;
                     let phys_window_h = (current_h * scale_factor).round() as i32;
 
+                    // 核心修复 2：直接使用预先拷贝进来的局部变量，完全告别 unwrap
                     let (final_x, final_y) = if is_pinned {
-                        let left_x = *ANIMATION_LEFT_X.lock().unwrap().as_ref().unwrap();
-                        let bottom_y = *ANIMATION_BOTTOM_Y.lock().unwrap().as_ref().unwrap();
-                        (left_x, bottom_y - phys_window_h)
+                        (anchor_lx, anchor_by - phys_window_h)
                     } else {
-                        let center_x = *ANIMATION_CENTER_X.lock().unwrap().as_ref().unwrap();
-                        let origin_y = *ANIMATION_ORIGIN_Y.lock().unwrap().as_ref().unwrap();
-                        (center_x - phys_window_w / 2, origin_y)
+                        (anchor_cx - phys_window_w / 2, anchor_cy)
                     };
 
                     unsafe {
@@ -546,19 +563,14 @@ async fn start_island_animation(
                     }
                 }
 
-                // 终点精准收尾
                 if ANIMATION_ID.load(Ordering::SeqCst) == id {
                     let phys_target_w = (target_width * scale_factor).round() as i32;
                     let phys_target_h = (target_height * scale_factor).round() as i32;
 
                     let (final_x, final_y) = if is_pinned {
-                        let left_x = *ANIMATION_LEFT_X.lock().unwrap().as_ref().unwrap();
-                        let bottom_y = *ANIMATION_BOTTOM_Y.lock().unwrap().as_ref().unwrap();
-                        (left_x, bottom_y - phys_target_h)
+                        (anchor_lx, anchor_by - phys_target_h)
                     } else {
-                        let center_x = *ANIMATION_CENTER_X.lock().unwrap().as_ref().unwrap();
-                        let origin_y = *ANIMATION_ORIGIN_Y.lock().unwrap().as_ref().unwrap();
-                        (center_x - phys_target_w / 2, origin_y)
+                        (anchor_cx - phys_target_w / 2, anchor_cy)
                     };
 
                     unsafe {
@@ -566,11 +578,14 @@ async fn start_island_animation(
                     }
                     let _ = window_clone.emit("island-resize", vec![target_width, target_height]);
 
-                    // 全量清理锚点锁
-                    *ANIMATION_CENTER_X.lock().unwrap() = None;
-                    *ANIMATION_ORIGIN_Y.lock().unwrap() = None;
-                    *ANIMATION_LEFT_X.lock().unwrap() = None;
-                    *ANIMATION_BOTTOM_Y.lock().unwrap() = None;
+                    // 核心修复 3：仅当当前动画仍是持有者时才清理锚点，防止误删新一轮动画的锁
+                    if let Ok(mut guard) = ANIMATION_ANCHOR.lock() {
+                        if let Some(anchor) = guard.as_ref() {
+                            if anchor.active_id == id {
+                                *guard = None;
+                            }
+                        }
+                    }
                 }
             });
         }
