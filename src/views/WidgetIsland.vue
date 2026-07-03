@@ -21,6 +21,18 @@
                             </div>
                         </div>
 
+                        <div v-else-if="displaySysToast" class="system-toast-box" key="systoast">
+                            <div class="toast-icon">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                    <circle cx="12" cy="12" r="10" stroke-width="2" stroke-linecap="round"
+                                        stroke-linejoin="round" opacity="0.3" />
+                                    <path d="M8 12.5l3 3 5-6" stroke-width="2.5" stroke-linecap="round"
+                                        stroke-linejoin="round" />
+                                </svg>
+                            </div>
+                            <div class="toast-text">{{ sysToastText }}</div>
+                        </div>
+
                         <div v-else-if="displayHardware" class="systemstate-box" key="hardware">
                             <div class="hw-item">
                                 <span class="hw-label">CPU</span>
@@ -132,6 +144,52 @@ const msgTitle = ref('');
 const msgBody = ref('');
 const msgAumid = ref('');
 
+// 系统操作通知专用变量
+const displaySysToast = ref(false);
+const sysToastText = ref('');
+const toastQueue = ref<string[]>([]);
+let isProcessingToast = false;
+
+// 队列处理函数
+const processToastQueue = async () => {
+    // 如果正在处理，或者队列为空，则直接返回
+    if (isProcessingToast || toastQueue.value.length === 0) return;
+
+    // 优先级判断：如果当前正在显示消息通知(最高优先级)，则挂起等待
+    if (isMsgActive.value) return;
+
+    isProcessingToast = true;
+    const nextToast = toastQueue.value.shift();
+
+    if (nextToast) {
+        sysToastText.value = nextToast;
+        displaySysToast.value = true;
+
+        // 停留显示 1 秒
+        await new Promise(resolve => setTimeout(resolve, 1500));
+
+        displaySysToast.value = false;
+        // 等待离开动画播完 (约 200ms) 再处理下一个
+        await new Promise(resolve => setTimeout(resolve, 200));
+    }
+
+    isProcessingToast = false;
+    processToastQueue(); // 递归检查是否还有下一个通知
+};
+
+// 暴露给外部调用的触发函数
+const showToast = (text: string) => {
+    toastQueue.value.push(text);
+    processToastQueue();
+};
+
+// 监听消息通知状态，一旦消息通知消失，立刻唤醒可能被挂起的操作通知队列
+watch(isMsgActive, (newVal) => {
+    if (!newVal) {
+        processToastQueue();
+    }
+});
+
 // 记录音乐岛是否处于展开状态
 const isMusicExpanded = ref(false);
 const isMusicExpanding = ref(false); // 记录是否正在播放弹性按压展开动画
@@ -235,9 +293,9 @@ const currentRotIndex = ref(0); // 0=网速, 1=音乐, 2=硬件
 let rotationTimer: number | null = null;
 
 // 使用计算属性智能判断当前该显示谁
-const displaySpeed = computed(() => !isMsgActive.value && (isRotationEnabled.value ? currentRotIndex.value === 0 : (!isMusicCtlEnabled.value && !isHardwareMonEnabled.value)));
-const displayMusic = computed(() => !isMsgActive.value && (isRotationEnabled.value ? currentRotIndex.value === 1 : isMusicCtlEnabled.value));
-const displayHardware = computed(() => !isMsgActive.value && (isRotationEnabled.value ? currentRotIndex.value === 2 : isHardwareMonEnabled.value));
+const displaySpeed = computed(() => !isMsgActive.value && !displaySysToast.value && (isRotationEnabled.value ? currentRotIndex.value === 0 : (!isMusicCtlEnabled.value && !isHardwareMonEnabled.value)));
+const displayMusic = computed(() => !isMsgActive.value && !displaySysToast.value && (isRotationEnabled.value ? currentRotIndex.value === 1 : isMusicCtlEnabled.value));
+const displayHardware = computed(() => !isMsgActive.value && !displaySysToast.value && (isRotationEnabled.value ? currentRotIndex.value === 2 : isHardwareMonEnabled.value));
 
 const startRotation = () => {
     if (rotationTimer) clearInterval(rotationTimer);
@@ -674,8 +732,8 @@ const handleRightClick = async (event: MouseEvent) => {
         text: '打开设置',
         id: 'open_settings',
         action: async () => {
-            // 发送一个信号给主控制台
             await emit('open-settings-panel');
+            showToast('打开设置成功');
         }
     });
 
@@ -683,11 +741,11 @@ const handleRightClick = async (event: MouseEvent) => {
     const toggleGlowBorderItem = await MenuItem.new({
         text: isGlowBorderEnabled.value ? '关闭流光边框' : '开启流光边框',
         id: 'toggle_glow_border',
-        enabled: true, // 改为 true，让你随时都可以点
+        enabled: true,
         action: () => {
             isGlowBorderEnabled.value = !isGlowBorderEnabled.value;
-            // 新增一行：把你切换后的状态存到本地电脑里
             localStorage.setItem('nsd_glow_border', String(isGlowBorderEnabled.value));
+            showToast(isGlowBorderEnabled.value ? '开启流光边框成功' : '关闭流光边框成功');
         }
     });
 
@@ -695,9 +753,10 @@ const handleRightClick = async (event: MouseEvent) => {
     const resetPositionItem = await MenuItem.new({
         text: isPinnedToTaskbar.value ? '重置位置 (已锁定)' : '重置位置',
         id: 'reset_position',
-        enabled: !isPinnedToTaskbar.value, // 核心逻辑：开启置于任务栏时，禁用此按钮
+        enabled: !isPinnedToTaskbar.value,
         action: () => {
             adjustWindowPosition().catch(console.error);
+            showToast('重置位置成功');
         }
     });
 
@@ -705,11 +764,11 @@ const handleRightClick = async (event: MouseEvent) => {
     const toggleLockItem = await MenuItem.new({
         text: isPositionLocked.value ? '解锁 (当前已锁定)' : '锁定',
         id: 'toggle_lock',
-        enabled: !isPinnedToTaskbar.value, // 核心：如果开启了置于任务栏，这个按钮就置灰禁用
+        enabled: !isPinnedToTaskbar.value,
         action: () => {
             isPositionLocked.value = !isPositionLocked.value;
-            // 保存状态到本地，下次打开软件还在
             localStorage.setItem('nsd_position_locked', String(isPositionLocked.value));
+            showToast(isPositionLocked.value ? '锁定位置成功' : '解锁位置成功');
         }
     });
 
@@ -1870,5 +1929,48 @@ onUnmounted(() => {
         /* JS 里已经拼好了 px 单位，这里直接 -1 乘过去即可 */
         transform: translateX(calc(-1 * var(--scroll-dist)));
     }
+}
+
+/* 系统操作通知样式 */
+.system-toast-box {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    padding-left: 0;
+    z-index: 10;
+    -webkit-app-region: no-drag;
+}
+
+.toast-icon {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    /* 取音乐封面相同的偏移量，确保视觉左侧完美对齐 */
+    transform: translateX(-8px);
+    color: #34C759;
+    /* 苹果同款成功绿 */
+}
+
+.toast-icon svg {
+    width: 24px;
+    height: 24px;
+}
+
+.toast-text {
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
+    font-size: 12.5px;
+    font-weight: 600;
+    white-space: nowrap;
+    opacity: 0.95;
+    /* 配合图标微调间距 */
+    transform: translateX(-2px) translateY(-1px);
 }
 </style>
