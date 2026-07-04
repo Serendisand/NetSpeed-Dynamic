@@ -22,12 +22,25 @@
                         </div>
 
                         <div v-else-if="displaySysToast" class="system-toast-box" key="systoast">
-                            <div class="toast-icon">
+                            <div v-if="sysToastType === 'app'" class="toast-icon app-icon">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
                                     <circle cx="12" cy="12" r="10" stroke-width="2" stroke-linecap="round"
                                         stroke-linejoin="round" opacity="0.3" />
                                     <path d="M8 12.5l3 3 5-6" stroke-width="2.5" stroke-linecap="round"
                                         stroke-linejoin="round" />
+                                </svg>
+                            </div>
+                            <div v-else class="toast-icon sys-icon">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                    <circle cx="12" cy="12" r="10" stroke-width="2" stroke-linecap="round"
+                                        stroke-linejoin="round" opacity="0.3" />
+
+                                    <g transform="translate(6, 5.5) scale(0.5)">
+                                        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" stroke-width="4"
+                                            stroke-linecap="round" stroke-linejoin="round" />
+                                        <path d="M13.73 21a2 2 0 0 1-3.46 0" stroke-width="4" stroke-linecap="round"
+                                            stroke-linejoin="round" />
+                                    </g>
                                 </svg>
                             </div>
                             <div class="toast-text">{{ sysToastText }}</div>
@@ -37,19 +50,19 @@
                             <div class="hw-item">
                                 <span class="hw-label">CPU</span>
                                 <span class="hw-value" :class="{ 'high-usage': parseInt(cpuUsage) >= 90 }">{{ cpuUsage
-                                }}</span>
+                                    }}</span>
                             </div>
                             <div class="hw-divider"></div>
                             <div class="hw-item">
                                 <span class="hw-label">GPU</span>
                                 <span class="hw-value" :class="{ 'high-usage': parseInt(gpuUsage) >= 90 }">{{ gpuUsage
-                                }}</span>
+                                    }}</span>
                             </div>
                             <div class="hw-divider"></div>
                             <div class="hw-item">
                                 <span class="hw-label">RAM</span>
                                 <span class="hw-value" :class="{ 'high-usage': parseInt(memUsage) >= 90 }">{{ memUsage
-                                }}</span>
+                                    }}</span>
                             </div>
                         </div>
 
@@ -147,7 +160,8 @@ const msgAumid = ref('');
 // 系统操作通知专用变量
 const displaySysToast = ref(false);
 const sysToastText = ref('');
-const toastQueue = ref<string[]>([]);
+const sysToastType = ref<'app' | 'sys'>('app'); // 记录当前是哪种类型的通知
+const toastQueue = ref<{ text: string, type: 'app' | 'sys' }[]>([]);
 let isProcessingToast = false;
 
 // 队列处理函数
@@ -162,7 +176,8 @@ const processToastQueue = async () => {
     const nextToast = toastQueue.value.shift();
 
     if (nextToast) {
-        sysToastText.value = nextToast;
+        sysToastText.value = nextToast.text;
+        sysToastType.value = nextToast.type;
         displaySysToast.value = true;
 
         // 停留显示 1 秒
@@ -178,8 +193,8 @@ const processToastQueue = async () => {
 };
 
 // 暴露给外部调用的触发函数
-const showToast = (text: string) => {
-    toastQueue.value.push(text);
+const showToast = (text: string, type: 'app' | 'sys' = 'app') => {
+    toastQueue.value.push({ text, type });
     processToastQueue();
 };
 
@@ -582,6 +597,18 @@ const checkNetworkLatency = async () => {
         }
     }
 };
+
+// 监听网络状态变化，触发系统通知
+watch(networkStatus, (newStatus, oldStatus) => {
+    // 忽略初始化时的变化，确保是真的状态翻转
+    if (oldStatus && oldStatus !== newStatus) {
+        if (newStatus === 'error') {
+            showToast('网络连接已断开', 'sys');
+        } else if (newStatus === 'good' && oldStatus === 'error') {
+            showToast('网络已恢复连接', 'sys');
+        }
+    }
+});
 
 // 调整窗口位置到正确位置
 const adjustWindowPosition = async () => {
@@ -1019,6 +1046,11 @@ onMounted(async () => {
             showInfo.value = false;
             musicBoxKey.value++;
         }
+    });
+
+    // 监听系统底层事件（音量、电源）
+    await listen<string>('system-event', (event) => {
+        showToast(event.payload, 'sys');
     });
 
     // 监听来自控制台的透明度同步指令
@@ -1953,15 +1985,25 @@ onUnmounted(() => {
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
-    /* 取音乐封面相同的偏移量，确保视觉左侧完美对齐 */
     transform: translateX(-8px);
-    color: #34C759;
-    /* 苹果同款成功绿 */
+}
+
+/* 内部操作同款成功绿 */
+.toast-icon.app-icon {
+    color: currentColor;
+}
+
+/* 系统通知使用跟随字体的原生对比色 (黑白) */
+.toast-icon.sys-icon {
+    color: currentColor;
+    opacity: 0.85;
 }
 
 .toast-icon svg {
-    width: 24px;
-    height: 24px;
+    width: 22px;
+    height: 22px;
+    display: block;
+    /* 消除内联元素的底部幽灵间距，确保绝对对齐 */
 }
 
 .toast-text {

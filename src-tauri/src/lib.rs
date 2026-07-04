@@ -1,6 +1,7 @@
 mod audio_spectrum;
 mod music_controller;
 mod notification;
+mod system_events;
 
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicU32, Ordering};
@@ -334,6 +335,7 @@ pub fn run() {
         ])
         .setup(|app| {
             audio_spectrum::start_monitor();
+            system_events::start_monitor(app.handle().clone());
 
             let args: Vec<String> = std::env::args().collect();
             let is_autostart = args.iter().any(|arg| arg == "--autostart");
