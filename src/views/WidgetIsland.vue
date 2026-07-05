@@ -1815,7 +1815,7 @@ onUnmounted(() => {
 /* 暂停状态下的竖线（统一高度） */
 .audio-spectrum .bar {
     width: 2px;
-    height: 20px;
+    height: 18px;
     background-color: #b6e0ee;
     border-radius: 3px;
     transform-origin: center;

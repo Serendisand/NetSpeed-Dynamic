@@ -110,10 +110,18 @@ fn process_data(data: &[f32], channels: u16) {
 
     // 6. 映射高度并平滑过渡
     let mut final_spectrum = [0.35_f32; 5];
+    
+    // 频段能量补偿权重（大幅压平）：高频保留最基础的补偿，不再强行放大
+    let eq_weights = [1.2, 1.1, 1.5, 3.0, 5.0]; 
+    // 整体小音量放大系数（再次削减）：直接降到个位数，大幅抑制微小底噪的跳动
+    let base_gain = 5.0; 
+
     for i in 0..5 {
-        // 对数值缩放，让视觉跳动更明显
-        let scaled = (bins[i].log10() * 0.25) + 0.35; 
-        final_spectrum[i] = scaled.clamp(0.35, 0.95); // 限制在前端要求的 0.35 到 0.95 之间
+        let energy = bins[i] * eq_weights[i] * base_gain;
+        
+        let scaled = ((energy + 1.0).log10() * 0.20) + 0.35; 
+        
+        final_spectrum[i] = scaled.clamp(0.35, 0.95); 
     }
 
     // 7. 更新到全局并应用平滑插值 (Lerp)，防止画面闪烁跳动过于剧烈
