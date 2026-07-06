@@ -23,7 +23,7 @@
 
 ---
 
-这是一个基于 **Tauri 2 + Rust + Vue 3** 的桌面灵动岛组件，灵动岛悬浮窗实时显示网络速度，支持多平台音乐控制、流量统计、系统通知接收与硬件监控，支持置于任务栏左下角及智能轮换模式。
+这是一个基于 **Tauri 2 + Rust + Vue 3** 的桌面灵动岛组件，灵动岛悬浮窗实时显示网络速度，支持多平台音乐控制、流量统计、系统通知接收、系统事件监控与硬件监控，支持置于任务栏左下角及智能轮换模式。
 
 ## 功能
 
@@ -46,6 +46,8 @@
 - **多源封面获取**：优先从系统 SMTC 提取本地高清封面，降级至网易云、Deezer、Apple Music，SVG 渐变兜底
 - **封面缓存**：智能缓存最近 50 首歌曲封面，提升响应速度
 - **彩虹流光边框**：8 色渐变旋转边框，可独立开关
+- **音频频谱可视化**：实时捕获系统音频输出，通过 FFT 变换生成 5 频段律动频谱，跟随音乐节奏跳动
+- **歌名滚动**：长歌名自动水平滚动，展开后切换为双行显示
 - **智能交互**：悬停显示控件，离开后自动切换为歌曲信息，1秒自动收缩
 
 ### 系统消息通知
@@ -55,6 +57,14 @@
 - **智能过滤**：自动过滤微信通知避免干扰
 - **点击唤醒**：点击通知区域直接打开对应应用（支持 QQ、微信、钉钉等）
 - **静默消息模式**：平时自动隐藏，收到消息后才弹出
+
+### 系统事件监控
+
+- **音量变化检测**：实时监听系统音量变化，自动弹出通知
+- **电源状态监控**：检测电源插入/拔出状态，显示充电状态图标
+- **低电量警告**：电量低于 20% 时自动触发红色警告通知
+- **专用SVG图标**：充电/低电量/锁定/解锁各有独立图标
+- **通知队列优先级**：系统通知优先于操作通知，消息通知最高优先级
 
 ### 系统硬件监控
 
@@ -94,6 +104,9 @@
 | 异步运行时 | Tokio (Rust) |
 | HTTP 客户端 | reqwest (Rust) |
 | 媒体控制 | Windows SMTC API |
+| 音频捕获 | cpal (Rust) |
+| 频谱分析 | rustfft (Rust) |
+| 系统事件 | Windows COM API |
 | Windows API | windows-sys + winapi |
 | 本地存储 | localStorage |
 
@@ -106,12 +119,16 @@ NetSpeed-Dynamic/
 │   ├── router/index.ts     # 路由配置
 │   ├── views/
 │   │   ├── MainPanel.vue   # 主控制台（设置、统计、音乐平台切换）
-│   │   └── WidgetIsland.vue # 灵动岛悬浮窗（网速、音乐、消息、硬件）
+│   │   └── WidgetIsland.vue # 灵动岛悬浮窗（网速、音乐、消息、硬件、频谱）
 │   └── assets/             # 静态资源（图标、截图）
 ├── src-tauri/              # Tauri 后端
 │   ├── src/
 │   │   ├── main.rs         # Rust 入口
-│   │   └── lib.rs          # 核心逻辑（网络、音乐、通知、动画）
+│   │   ├── lib.rs          # 核心逻辑
+│   │   ├── audio_spectrum.rs # 音频频谱分析（FFT）
+│   │   ├── music_controller.rs # 音乐控制器（SMTC API）
+│   │   ├── notification.rs # 系统通知捕获
+│   │   └── system_events.rs # 系统事件监控（音量、电源）
 │   ├── Cargo.toml          # Rust 依赖
 │   └── tauri.conf.json     # Tauri 配置
 └── package.json            # 前端依赖
@@ -163,8 +180,8 @@ Copyright (c) 2026 Ryen (GEORGEWU)
 
 | 方式 | 信息 |
 |------|------|
-| 微信支付 | ![微信](./src/assets/wechat-pay.png) |
-| 支付宝 | ![支付宝](./src/assets/alipay.jpg) |
+| 微信支付 | [微信](./src/assets/wechat-pay.png) |
+| 支付宝 | [支付宝](./src/assets/alipay.jpg) |
 | GitHub Sponsors | [前往支持](https://github.com/sponsors/GEORGEWWWU) |
 
 ---
