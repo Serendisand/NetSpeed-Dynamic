@@ -88,18 +88,19 @@
                             <div class="toast-text">{{ sysToastText }}</div>
                         </div>
 
-                        <div v-else-if="displayHardware" class="systemstate-box" key="hardware">
-                            <div class="hw-item">
-                                <span class="hw-label">CPU</span>
-                                <span class="hw-value" :class="{ 'high-usage': parseInt(cpuUsage) >= 90 }">{{ cpuUsage
-                                }}</span>
-                            </div>
-                            <div class="hw-divider"></div>
-                            <div class="hw-item">
-                                <span class="hw-label">RAM</span>
-                                <span class="hw-value" :class="{ 'high-usage': parseInt(memUsage) >= 90 }">{{ memUsage
-                                }}</span>
-                            </div>
+                        <div v-else-if="displayHardware" class="speed-box" key="hardware">
+                            <transition name="speed-fade" mode="out-in">
+                                <div v-if="isShowingCPU" class="speed-item" key="cpu">
+                                    <span class="label">CPU</span>
+                                    <span class="value" :class="{ 'high-usage': parseInt(cpuUsage) >= 90 }">{{ cpuUsage
+                                    }}</span>
+                                </div>
+                                <div v-else class="speed-item" key="ram">
+                                    <span class="label">RAM</span>
+                                    <span class="value" :class="{ 'high-usage': parseInt(memUsage) >= 90 }">{{ memUsage
+                                    }}</span>
+                                </div>
+                            </transition>
                         </div>
 
                         <div v-else-if="displayMusic" class="music-ctl-box" :class="{ 'expanded': isMusicExpanded }"
@@ -189,6 +190,7 @@ const isMenuOpen = ref(false);
 
 // 记录当前是否显示上行网速（用于轮换）
 const isShowingUpload = ref(false);
+const isShowingCPU = ref(true);
 let speedCycleTimer: number | null = null;
 
 // 控制 DOM 真正的高宽变量与消息数据
@@ -371,8 +373,8 @@ const displayHardware = computed(() => !isMsgActive.value && !displaySysToast.va
 
 // 辅助函数：获取当前状态应该拥有的默认大小
 const getBaseSize = () => {
-    // 网速岛尺寸缩小为 160x34（高度减去 8px，宽度减去 100px）
-    if (displaySpeed.value) return { w: 150, h: 34 };
+    // 网速岛 和 硬件监控尺寸统一缩小为 150x34
+    if (displaySpeed.value || displayHardware.value) return { w: 150, h: 34 };
     // 硬件、音乐（未展开）等其他状态恢复默认的 260x42
     return { w: 260, h: 42 };
 };
@@ -1195,10 +1197,15 @@ onMounted(async () => {
     fetchSpeedStats();
     checkNetworkLatency();
 
-    // 启动网速显示轮换定时器 (每 3 秒切换一次)
+    // 启动网速和硬件显示轮换定时器 (每 5 秒切换一次)
     speedCycleTimer = window.setInterval(() => {
+        // 网速轮换
         if (displaySpeed.value) {
             isShowingUpload.value = !isShowingUpload.value;
+        }
+        // 硬件轮换
+        if (displayHardware.value) {
+            isShowingCPU.value = !isShowingCPU.value;
         }
     }, 5000);
 
@@ -1800,48 +1807,10 @@ onUnmounted(() => {
     white-space: nowrap;
 }
 
-
-/* 系统硬件盒子样式 */
-.systemstate-box {
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 100%;
-    height: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: flex-start;
-    gap: 10px;
-}
-
-.hw-item {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    margin-left: 6px;
-    transform: translateY(-1px);
-    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
-}
-
-.hw-label {
-    font-size: 10px;
-    color: currentColor;
-    opacity: 0.5;
-    font-weight: bold;
-}
-
-.hw-value {
-    font-size: 14px;
-    font-weight: bold;
-    min-width: 36px;
-    letter-spacing: -0.2px;
-    transition: color 0.3s ease;
-}
-
-/* 当占用率达到 90% 及以上时触发的标准苹果亮红色 */
-.hw-value.high-usage {
+.value.high-usage {
     color: #f06861 !important;
 }
+
 
 /* 音乐律动频谱样式 */
 .audio-spectrum {
