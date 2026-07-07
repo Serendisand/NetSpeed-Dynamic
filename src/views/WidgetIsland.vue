@@ -92,13 +92,13 @@
                             <div class="hw-item">
                                 <span class="hw-label">CPU</span>
                                 <span class="hw-value" :class="{ 'high-usage': parseInt(cpuUsage) >= 90 }">{{ cpuUsage
-                                }}</span>
+                                    }}</span>
                             </div>
                             <div class="hw-divider"></div>
                             <div class="hw-item">
                                 <span class="hw-label">RAM</span>
                                 <span class="hw-value" :class="{ 'high-usage': parseInt(memUsage) >= 90 }">{{ memUsage
-                                }}</span>
+                                    }}</span>
                             </div>
                         </div>
 
@@ -150,14 +150,16 @@
                         </div>
 
                         <div v-else-if="displaySpeed" class="speed-box" key="speed">
-                            <div class="speed-item">
-                                <span :class="['label', { 'high-traffic': isHighUpload }]">↑</span>
-                                <span class="value">{{ uploadSpeed }}</span>
-                            </div>
-                            <div class="speed-item">
-                                <span :class="['label', { 'high-traffic': isHighDownload }]">↓</span>
-                                <span class="value">{{ downloadSpeed }}</span>
-                            </div>
+                            <transition name="speed-fade" mode="out-in">
+                                <div v-if="isShowingUpload" class="speed-item" key="upload">
+                                    <span :class="['label', { 'high-traffic': isHighUpload }]">⬆</span>
+                                    <span class="value">{{ uploadSpeed }}</span>
+                                </div>
+                                <div v-else class="speed-item" key="download">
+                                    <span :class="['label', { 'high-traffic': isHighDownload }]">⬇</span>
+                                    <span class="value">{{ downloadSpeed }}</span>
+                                </div>
+                            </transition>
                         </div>
                     </transition>
                 </div>
@@ -185,9 +187,13 @@ import { listen, emit } from '@tauri-apps/api/event';
 const isIslandVisible = ref(false);
 const isMenuOpen = ref(false);
 
+// 记录当前是否显示上行网速（用于轮换）
+const isShowingUpload = ref(false);
+let speedCycleTimer: number | null = null;
+
 // 控制 DOM 真正的高宽变量与消息数据
-const currentWidth = ref(260);
-const currentHeight = ref(42);
+const currentWidth = ref(150);
+const currentHeight = ref(34);
 const isMsgActive = ref(false);
 const msgTitle = ref('');
 const msgAppName = ref('');
@@ -347,6 +353,23 @@ let rotationTimer: number | null = null;
 const displaySpeed = computed(() => !isMsgActive.value && !displaySysToast.value && (isRotationEnabled.value ? currentRotIndex.value === 0 : (!isMusicCtlEnabled.value && !isHardwareMonEnabled.value)));
 const displayMusic = computed(() => !isMsgActive.value && !displaySysToast.value && (isRotationEnabled.value ? currentRotIndex.value === 1 : isMusicCtlEnabled.value));
 const displayHardware = computed(() => !isMsgActive.value && !displaySysToast.value && (isRotationEnabled.value ? currentRotIndex.value === 2 : isHardwareMonEnabled.value));
+
+// 辅助函数：获取当前状态应该拥有的默认大小
+const getBaseSize = () => {
+    // 网速岛尺寸缩小为 160x34（高度减去 8px，宽度减去 100px）
+    if (displaySpeed.value) return { w: 150, h: 34 };
+    // 硬件、音乐（未展开）等其他状态恢复默认的 260x42
+    return { w: 260, h: 42 };
+};
+
+// 监听内容切换，触发丝滑动画过渡
+watch([displaySpeed, displayMusic, displayHardware], () => {
+    // 只有在没有被临时弹窗（消息、音乐展开）霸占时，才执行基础大小切换
+    if (!isMsgActive.value && !displaySysToast.value && !isMusicExpanded.value && !isMusicExpanding.value) {
+        const { w, h } = getBaseSize();
+        animateIslandSize(w, h);
+    }
+});
 
 // 专门用于控制右侧常驻指示灯的独立计算属性（完全不受消息通知打断）
 const showSpectrumIndicator = computed(() => {
@@ -955,7 +978,8 @@ const collapseMusic = () => {
         musicExpandAnimTimer = null;
     }
 
-    animateIslandSize(260, 42); // 恢复到默认大小
+    const { w, h } = getBaseSize();
+    animateIslandSize(w, h);
 };
 
 // 音乐控制器点击展开方法
@@ -1156,6 +1180,13 @@ onMounted(async () => {
     fetchSpeedStats();
     checkNetworkLatency();
 
+    // 启动网速显示轮换定时器 (每 3 秒切换一次)
+    speedCycleTimer = window.setInterval(() => {
+        if (displaySpeed.value) {
+            isShowingUpload.value = !isShowingUpload.value;
+        }
+    }, 5000);
+
     // 在你原有的每秒刷新定时器中，顺带执行音乐同步
     // 1. 高频定时器：专门负责网速和硬件监控（每 500ms ~ 1000ms 刷新一次）
     speedTimer = setInterval(async () => {
@@ -1223,7 +1254,8 @@ onMounted(async () => {
                 if ((window as any).msgTimer) clearTimeout((window as any).msgTimer);
                 (window as any).msgTimer = setTimeout(() => {
                     isMsgActive.value = false;
-                    animateIslandSize(260, 42);
+                    const { w, h } = getBaseSize();
+                    animateIslandSize(w, h);
                     if (isMsgModeEnabled.value) {
                         setTimeout(() => {
                             if (!isMsgActive.value) isIslandVisible.value = false;
@@ -1291,6 +1323,7 @@ onUnmounted(() => {
     clearInterval(musicTimer);
     clearInterval(notifyTimer);
     clearInterval(spectrumTimer);
+    if (speedCycleTimer) clearInterval(speedCycleTimer);
 });
 </script>
 
@@ -1394,42 +1427,77 @@ onUnmounted(() => {
     cursor: grabbing;
 }
 
+/* 修改网速盒子布局，强制靠左，并加入左侧内边距 */
 .speed-box {
+    position: absolute;
+    left: 0;
+    top: 0;
     display: flex;
     align-items: center;
-    gap: 10px;
+    justify-content: flex-start;
+    width: 100%;
+    height: 100%;
 }
 
 .speed-item {
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: 6px;
+    /* 稍微拉开箭头和数字的距离 */
     transform: translateY(-1px);
     font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
 }
 
 .label {
     font-size: 10px;
+    /* 稍微调大箭头 */
     color: currentColor;
-    opacity: 0.4;
-    font-weight: bold;
-    padding: 2px 4px;
+    opacity: 0.5;
+    font-weight: 800;
+    padding: 2px 5px;
     border-radius: 4px;
     transition: all 0.3s ease;
+    background: rgba(150, 150, 150, 0.15);
+    /* 默认给一个淡淡的底色，增加质感 */
 }
 
 /* 高流量时的 label 样式 */
 .label.high-traffic {
     color: currentColor;
-    opacity: 0.9;
-    background: rgba(255, 255, 255, 0.15);
+    opacity: 1;
+    background: rgba(255, 255, 255, 0.25);
+}
+
+:deep(.island-container[style*="background-color: rgba(255, 255, 255"]) .label.high-traffic {
+    background: rgba(0, 0, 0, 0.15);
 }
 
 .value {
     font-size: 12px;
-    font-weight: bold;
-    min-width: 52px;
-    letter-spacing: -0.2px;
+    transform: translateY(-0.5px);
+    font-weight: 600;
+    letter-spacing: 0.2px;
+    font-variant-numeric: tabular-nums;
+    min-width: 65px;
+    text-align: left;
+}
+
+/* 网速轮换的淡入淡出动画 */
+.speed-fade-enter-active,
+.speed-fade-leave-active {
+    transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.speed-fade-enter-from {
+    opacity: 0;
+    transform: translateY(4px);
+    /* 微微从下方滑入 */
+}
+
+.speed-fade-leave-to {
+    opacity: 0;
+    transform: translateY(-4px);
+    /* 微微向上滑出 */
 }
 
 .status-dot {
