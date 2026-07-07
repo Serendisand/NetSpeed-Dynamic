@@ -794,8 +794,15 @@ const handleMouseDown = (event: MouseEvent) => {
 const handleMouseMove = async (event: MouseEvent) => {
     if (!isMouseDown) return;
 
-    // 如果音乐灵动岛正在展开或已完全展开，强制禁止拖拽
-    if (isMusicExpanded.value || isMusicExpanding.value) return;
+    // 1. 全局动画锁：任何变形动画期间，绝对禁止拖拽
+    if (isSizeAnimating) return;
+
+    // 2. 状态锁：音乐展开、消息通知、系统提示期间，统统禁止拖拽！
+    if (isMusicExpanded.value || isMusicExpanding.value || isMsgActive.value || displaySysToast.value) {
+        // 发现企图拖拽，立刻打断施法
+        isMouseDown = false;
+        return;
+    }
 
     // 如果固定到了任务栏或已锁定位置，则禁止拖动
     if (isPinnedToTaskbar.value || isPositionLocked.value) return;
@@ -819,7 +826,9 @@ const handleRightClick = async (event: MouseEvent) => {
     event.stopPropagation(); // 阻止冒泡
 
     // 如果音乐灵动岛正在展开或已完全展开，强制禁止呼出右键菜单
-    if (isMusicExpanded.value || isMusicExpanding.value) return;
+    if (isMusicExpanded.value || isMusicExpanding.value || isMsgActive.value || displaySysToast.value) {
+        return;
+    }
 
     // 打开设置
     const openSettingsItem = await MenuItem.new({
@@ -848,9 +857,13 @@ const handleRightClick = async (event: MouseEvent) => {
         text: isPinnedToTaskbar.value ? '重置位置 (已锁定)' : '重置位置',
         id: 'reset_position',
         enabled: !isPinnedToTaskbar.value,
-        action: () => {
-            adjustWindowPosition().catch(console.error);
-            showToast('已重置位置');
+        action: async () => {
+            try {
+                await adjustWindowPosition();
+                showToast('已重置位置');
+            } catch (error) {
+                console.error(error);
+            }
         }
     });
 
@@ -948,11 +961,22 @@ const onInnerLeave = (el: Element, done: () => void) => {
     requestAnimationFrame(animate);
 };
 
+// 记录全局灵动岛是否正在执行形变动画
+let isSizeAnimating = false;
+let sizeAnimTimer: number | null = null;
+
 // 灵动岛核心代码！（完美防漂移+防裁切+防打断抖动）
 const animateIslandSize = async (targetWidth: number, targetHeight: number) => {
     try {
-        // 不使用响应式的 currentWidth，而是向系统请求当前最真实的物理像素
-        // 这样无论前一个动画进行到哪一帧，新动画都会完美“接管”当前状态，实现丝滑中断
+        // 1. 触发形变前：立刻上锁
+        isSizeAnimating = true;
+        if (sizeAnimTimer) clearTimeout(sizeAnimTimer);
+
+        // 2. 设定 500ms 后自动解锁（覆盖大多数弹簧动画的持续时间）
+        sizeAnimTimer = window.setTimeout(() => {
+            isSizeAnimating = false;
+        }, 500);
+
         const appWindow = getCurrentWindow();
         const realSize = await appWindow.innerSize();
         const scaleFactor = window.devicePixelRatio;
@@ -969,6 +993,8 @@ const animateIslandSize = async (targetWidth: number, targetHeight: number) => {
         });
     } catch (err) {
         console.error('呼叫 Rust 动画失败:', err);
+        // 如果调用失败，安全起见立刻解锁，防止死锁
+        isSizeAnimating = false;
     }
 };
 
