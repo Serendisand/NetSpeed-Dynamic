@@ -804,7 +804,7 @@ const handleRightClick = async (event: MouseEvent) => {
         id: 'open_settings',
         action: async () => {
             await emit('open-settings-panel');
-            showToast('打开设置成功');
+            showToast('已打开设置');
         }
     });
 
@@ -816,7 +816,7 @@ const handleRightClick = async (event: MouseEvent) => {
         action: () => {
             isGlowBorderEnabled.value = !isGlowBorderEnabled.value;
             localStorage.setItem('nsd_glow_border', String(isGlowBorderEnabled.value));
-            showToast(isGlowBorderEnabled.value ? '开启流光边框成功' : '关闭流光边框成功');
+            showToast(isGlowBorderEnabled.value ? '已开启流光边框' : '已关闭流光边框');
         }
     });
 
@@ -827,7 +827,7 @@ const handleRightClick = async (event: MouseEvent) => {
         enabled: !isPinnedToTaskbar.value,
         action: () => {
             adjustWindowPosition().catch(console.error);
-            showToast('重置位置成功');
+            showToast('已重置位置');
         }
     });
 
@@ -841,7 +841,7 @@ const handleRightClick = async (event: MouseEvent) => {
             localStorage.setItem('nsd_position_locked', String(isPositionLocked.value));
             // 修改这里：根据状态触发 lock 或 unlock 专属通知
             showToast(
-                isPositionLocked.value ? '锁定位置成功' : '解锁位置成功',
+                isPositionLocked.value ? '锁定位置成功' : '位置已解锁',
                 isPositionLocked.value ? 'lock' : 'unlock'
             );
         }
