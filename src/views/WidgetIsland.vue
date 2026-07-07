@@ -92,13 +92,13 @@
                             <div class="hw-item">
                                 <span class="hw-label">CPU</span>
                                 <span class="hw-value" :class="{ 'high-usage': parseInt(cpuUsage) >= 90 }">{{ cpuUsage
-                                    }}</span>
+                                }}</span>
                             </div>
                             <div class="hw-divider"></div>
                             <div class="hw-item">
                                 <span class="hw-label">RAM</span>
                                 <span class="hw-value" :class="{ 'high-usage': parseInt(memUsage) >= 90 }">{{ memUsage
-                                    }}</span>
+                                }}</span>
                             </div>
                         </div>
 
@@ -234,6 +234,21 @@ const processToastQueue = async () => {
     isProcessingToast = false;
     processToastQueue(); // 递归检查是否还有下一个通知
 };
+
+// 监听系统通知显示状态，解决网速模式下尺寸过小导致文字溢出/遮挡指示灯的问题
+watch(displaySysToast, (newVal) => {
+    if (newVal) {
+        // 当有系统操作通知出现时，强制展开到默认标准尺寸
+        animateIslandSize(260, 42);
+    } else {
+        // 通知消失时，恢复到当前状态该有的尺寸
+        // （前提是没有被应用消息或音乐面板霸占）
+        if (!isMsgActive.value && !isMusicExpanded.value && !isMusicExpanding.value) {
+            const { w, h } = getBaseSize();
+            animateIslandSize(w, h);
+        }
+    }
+});
 
 // 暴露给外部调用的触发函数
 const showToast = (text: string, type: 'app' | 'sys' | 'battery-charge' | 'battery-low' | 'lock' | 'unlock' = 'app') => {
