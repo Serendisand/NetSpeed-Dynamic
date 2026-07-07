@@ -15,7 +15,10 @@
                                 <img :src="currentMsgIcon" alt="消息图标" class="msg-avatar-img">
                             </div>
                             <div class="msg-text-wrapper">
-                                <div class="msg-title">{{ msgTitle }}</div>
+                                <div class="msg-title">
+                                    <span class="sender-name">{{ msgTitle }}</span>
+                                    <span class="app-name">{{ msgAppName }}</span>
+                                </div>
                                 <div class="msg-body">{{ msgBody }}</div>
                             </div>
                         </div>
@@ -89,19 +92,19 @@
                             <div class="hw-item">
                                 <span class="hw-label">CPU</span>
                                 <span class="hw-value" :class="{ 'high-usage': parseInt(cpuUsage) >= 90 }">{{ cpuUsage
-                                }}</span>
+                                    }}</span>
                             </div>
                             <div class="hw-divider"></div>
                             <div class="hw-item">
                                 <span class="hw-label">GPU</span>
                                 <span class="hw-value" :class="{ 'high-usage': parseInt(gpuUsage) >= 90 }">{{ gpuUsage
-                                }}</span>
+                                    }}</span>
                             </div>
                             <div class="hw-divider"></div>
                             <div class="hw-item">
                                 <span class="hw-label">RAM</span>
                                 <span class="hw-value" :class="{ 'high-usage': parseInt(memUsage) >= 90 }">{{ memUsage
-                                }}</span>
+                                    }}</span>
                             </div>
                         </div>
 
@@ -193,6 +196,7 @@ const currentWidth = ref(260);
 const currentHeight = ref(42);
 const isMsgActive = ref(false);
 const msgTitle = ref('');
+const msgAppName = ref('');
 const msgBody = ref('');
 const msgAumid = ref('');
 
@@ -1216,9 +1220,15 @@ onMounted(async () => {
         try {
             const res = await invoke<any>('fetch_latest_notification');
             if (res) {
-                msgTitle.value = res.app_name;
                 msgAumid.value = res.aumid;
-                msgBody.value = res.body ? `${res.title}: ${res.body}` : res.title;
+
+                // 标题只存发送者（如果没有单独标题就显示 '新通知'）
+                msgTitle.value = (res.title && res.title !== res.app_name) ? res.title : '新通知';
+                // 单独把程序名存起来
+                msgAppName.value = res.app_name;
+                // 内容兜底逻辑保持不变
+                msgBody.value = res.body || (res.title === res.app_name ? '收到一条新通知' : res.title);
+
                 currentMsgIcon.value = getAppIcon(res.app_name);
 
                 if (!isMsgActive.value) {
@@ -1329,7 +1339,7 @@ onUnmounted(() => {
     border: none !important;
 }
 
-/* 1. 外层包裹层：负责裁切多余的流光 */
+/* 外层包裹层：负责裁切多余的流光 */
 .island-container {
     /* 移除 position: absolute; top: 0; */
     margin: 0 auto;
@@ -1350,13 +1360,13 @@ onUnmounted(() => {
     contain: strict;
 }
 
-/* 2. 隐藏在底层的巨大旋转渐变层 */
+/* 隐藏在底层的巨大旋转渐变层 */
 .rainbow-border-glow {
     position: absolute;
     width: 500px;
     height: 500px;
 
-    /* 核心修复：500px 的一半是 250px，修正旋转中心偏移问题 */
+    /* 修正旋转中心偏移问题 */
     top: calc(50% - 250px);
     left: calc(50% - 250px);
 
@@ -1371,7 +1381,7 @@ onUnmounted(() => {
     will-change: transform;
 }
 
-/* 3. 核心遮罩内容块：挡在旋转渐变层的上方 */
+/* 核心遮罩内容块：挡在旋转渐变层的上方 */
 .island-core-content {
     position: relative;
     z-index: 2;
@@ -1386,7 +1396,7 @@ onUnmounted(() => {
     overflow: hidden;
 }
 
-/* 4. 顺时针匀速旋转 */
+/* 顺时针匀速旋转 */
 @keyframes rainbow-rotate {
     from {
         transform: rotate(0deg);
@@ -1434,9 +1444,7 @@ onUnmounted(() => {
 .label.high-traffic {
     color: currentColor;
     opacity: 0.9;
-    /* 文字稍微变亮，增加可读性 */
     background: rgba(255, 255, 255, 0.15);
-    /* 浅白色半透明背景 */
 }
 
 .value {
@@ -1453,7 +1461,7 @@ onUnmounted(() => {
     transition: background-color 0.4s ease;
 }
 
-/* 修改后（去掉发光阴影，改为纯粹的扁平化圆点，干净利落） */
+/* 去掉发光阴影，改为纯粹的扁平化圆点，干净利落 */
 .good {
     background-color: #34C759;
 }
@@ -1483,7 +1491,7 @@ onUnmounted(() => {
     justify-content: flex-start;
 }
 
-/* 核心改动：增加统一的内部绝对定位平替包裹层 */
+/* 增加统一的内部绝对定位平替包裹层 */
 .inner-wrapper {
     position: relative;
     flex-grow: 1;
@@ -1496,10 +1504,8 @@ onUnmounted(() => {
     width: 24px;
     height: 24px;
     border-radius: 50%;
-    /* 变成纯圆球形 */
     box-sizing: unset !important;
     border: 2px solid rgba(255, 255, 255, 0.5) !important;
-    /* 2px 的外环 */
     background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
     flex-shrink: 0;
     overflow: hidden;
@@ -1510,7 +1516,6 @@ onUnmounted(() => {
     transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
     z-index: 2;
     transform: translateX(-8px);
-    /* 确保层级比控制器高 */
 }
 
 /* 亮色模式下的外环颜色自动变暗 */
@@ -1530,9 +1535,6 @@ onUnmounted(() => {
     background-repeat: no-repeat;
     background-size: cover;
     transition: background-image 0.3s ease;
-    /* 切换封面时平滑淡入 */
-
-    /* 👇 新增下面这两行 */
     animation: rotate 8s linear infinite;
     animation-play-state: paused;
     /* 默认让动画处于暂停状态 */
@@ -1540,7 +1542,6 @@ onUnmounted(() => {
 
 /* 正在播放时的旋转动画 */
 .is-playing .cover-inner {
-    /* 👇 把原来的 animation 替换成下面这行 */
     animation-play-state: running;
     /* 当有播放状态时，让动画跑起来 */
 }
@@ -1556,22 +1557,18 @@ onUnmounted(() => {
 }
 
 .music-controls {
-    /* 将 absolute 改为 fixed，彻底突破 .inner-wrapper 的宽度限制 */
     position: fixed;
     left: 50%;
     top: 50%;
-    /* 同时兼顾水平和垂直居中 */
     transform: translate(-50%, -50%);
     display: flex;
     align-items: center;
     gap: 12px;
     z-index: 10;
-    /* 适当提高层级，防止被遮挡 */
 }
 
 .ctl-btn {
     background: transparent;
-    /* 默认透明，无背景色 */
     border: none;
     color: inherit;
     cursor: pointer;
@@ -1579,7 +1576,6 @@ onUnmounted(() => {
     align-items: center;
     justify-content: center;
     padding: 6px;
-    /* 稍微加大内边距，让 hover 时的圆圈更好看 */
     border-radius: 50%;
     transition: background-color 0.2s ease, opacity 0.2s ease, transform 0.1s ease;
     outline: none;
@@ -1598,7 +1594,6 @@ onUnmounted(() => {
 .ctl-btn:active {
     opacity: 0.6;
     transform: scale(0.92);
-    /* 加上按压时的微缩放反馈，手感更好 */
 }
 
 .ctl-btn svg {
@@ -1628,19 +1623,14 @@ onUnmounted(() => {
 .music-info-mask-box {
     position: absolute;
     left: 30px;
-    /* 👉 修改这里：从 20px 改为 32px，给封面留出充足的呼吸空间 */
     right: 18px;
-    /* 给右侧网络指示灯留出安全间距 */
     height: 100%;
     display: flex;
     align-items: center;
     overflow: hidden;
     padding-left: 0;
-    /* 👉 这里可以改为0，因为里面是绝对定位，写了也没用 */
     -webkit-app-region: no-drag;
     transform: translateY(-1px) translateX(-0.5px);
-
-    /* 核心过渡遮罩：右侧文字溢出边缘呈渐隐效果 */
     mask-image: linear-gradient(to right, #000000 75%, transparent 100%);
     -webkit-mask-image: linear-gradient(to right, #000000 75%, transparent 100%);
 }
@@ -1667,11 +1657,9 @@ onUnmounted(() => {
     display: flex;
     align-items: center;
     padding: 0 45px 0 0px;
-    /* 右侧 45px 留给状态灯安全区域，左侧 16px 间距 */
     box-sizing: border-box;
     z-index: 10;
     gap: 12px;
-    /* 图标与文本的间距 */
     -webkit-app-region: no-drag;
 }
 
@@ -1680,9 +1668,7 @@ onUnmounted(() => {
     width: 35px;
     height: 35px;
     border-radius: 50%;
-    /* 默认圆形，可改为 8px 变成圆角矩形 */
     background: none;
-    /* 渐变亮色背景 */
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1704,29 +1690,46 @@ onUnmounted(() => {
     flex-direction: column;
     justify-content: center;
     align-items: flex-start;
-    /* 核心：强制内部文本左对齐 */
     overflow: hidden;
     flex-grow: 1;
 }
 
-/* 调大后的标题样式 */
+/* 消息弹窗容器 */
 .msg-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
     font-size: 14px;
-    /* 从 12px 放大到 14px */
     font-weight: 700;
     line-height: 1.4;
-    opacity: 0.95;
-    text-align: left;
     width: 100%;
+    overflow: hidden;
+}
+
+/* 发送者昵称（允许超长省略号） */
+.sender-name {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
 
+/* 尾部的程序名 */
+.app-name {
+    font-size: 10.5px;
+    font-weight: 600;
+    flex-shrink: 0;
+    padding: 2px 6px;
+    border-radius: 6px;
+    background-color: rgba(150, 150, 150, 0.25);
+    color: inherit;
+    opacity: 0.9;
+    letter-spacing: 0.2px;
+    transform: translateY(-0.5px);
+}
+
 /* 调大后的内容样式 */
 .msg-body {
     font-size: 12.5px;
-    /* 从 11px 放大到 12.5px */
     line-height: 1.4;
     opacity: 0.75;
     text-align: left;
@@ -1772,10 +1775,9 @@ onUnmounted(() => {
     min-width: 36px;
     letter-spacing: -0.2px;
     transition: color 0.3s ease;
-    /* 👈 新增：让颜色变化时有 0.3 秒的平滑淡入淡出，不突兀 */
 }
 
-/* 👇 新增：当占用率达到 90% 及以上时触发的标准苹果亮红色 */
+/* 当占用率达到 90% 及以上时触发的标准苹果亮红色 */
 .hw-value.high-usage {
     color: #f06861 !important;
 }
@@ -1786,9 +1788,7 @@ onUnmounted(() => {
     align-items: center;
     justify-content: center;
     gap: 2px;
-    /* 竖线之间的缝隙 */
     height: 12px;
-    /* 给一个固定高度容器 */
     padding-right: 2px;
 }
 
@@ -1804,11 +1804,6 @@ onUnmounted(() => {
     will-change: transform;
 }
 
-/* ====================
-   原汁原味排版 + 剥离冲突动画修复版
-==================== */
-
-/* 1. 恢复原本的盒子过渡，但【绝对不能】使用 all，只给透明度留动画 */
 .music-ctl-box {
     transition: opacity 0.2s ease !important;
 }
@@ -1820,7 +1815,7 @@ onUnmounted(() => {
     padding: 0 !important;
 }
 
-/* 2. 顶部容器：取消 all 过渡，让它跟着 Rust 窗口的拉伸严丝合缝地重排 */
+/* 顶部容器：取消 all 过渡，让它跟着 Rust 窗口的拉伸严丝合缝地重排 */
 .music-top-row {
     display: flex;
     align-items: center;
@@ -1828,7 +1823,7 @@ onUnmounted(() => {
     height: 100%;
     position: relative;
     transition: none !important;
-    /* 👈 核心防抖魔法，取消 CSS 的挣扎 */
+    /* 核心防抖魔法，取消 CSS 的挣扎 */
 }
 
 .music-ctl-box.expanded .music-top-row {
@@ -1838,7 +1833,7 @@ onUnmounted(() => {
     border: none;
 }
 
-/* 3. 封面：覆盖掉上面的 transition: all，只保留变形和圆角的过渡 */
+/* 封面：覆盖掉上面的 transition: all，只保留变形和圆角的过渡 */
 .album-cover {
     transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.2), border-radius 0.3s ease !important;
 }
@@ -1863,7 +1858,7 @@ onUnmounted(() => {
     transform: scale(1.05) translateX(0px) rotate(0deg) !important;
 }
 
-/* 4. 歌曲文本遮罩：取消过渡，随窗口大小瞬间变化 */
+/* 歌曲文本遮罩：取消过渡，随窗口大小瞬间变化 */
 .music-ctl-box.expanded .music-info-mask-box {
     left: 60px !important;
     right: 55px !important;
@@ -1873,7 +1868,7 @@ onUnmounted(() => {
     transition: none !important;
 }
 
-/* 5. 你的两套文字过渡逻辑非常完美，全部保留原样（因为 opacity 不影响排版） */
+/* 你的两套文字过渡逻辑非常完美，全部保留原样（因为 opacity 不影响排版） */
 .music-info-text {
     position: absolute;
     left: 0 !important;
@@ -1934,7 +1929,7 @@ onUnmounted(() => {
     text-align: left !important;
 }
 
-/* 6. 媒体控件与频谱 */
+/* 媒体控件与频谱 */
 .music-ctl-box.expanded .music-controls {
     position: absolute;
     left: 50%;
@@ -1964,7 +1959,7 @@ onUnmounted(() => {
     transition: opacity 0.3s ease, transform 0.3s ease !important;
 }
 
-/* 核心修复 3：强制靠左对齐，干掉原本的 align-items: center。否则长文本会向两边溢出，导致开头被裁 */
+/* 强制靠左对齐，干掉原本的 align-items: center。否则长文本会向两边溢出，导致开头被裁 */
 .music-info-text.single-line {
     overflow: visible !important;
     align-items: flex-start !important;
@@ -2043,17 +2038,14 @@ onUnmounted(() => {
     width: 22px;
     height: 22px;
     display: block;
-    /* 消除内联元素的底部幽灵间距，确保绝对对齐 */
 }
 
 .toast-icon.battery-charge-icon {
     color: #34C759;
-    /* 灵动岛同款亮绿色 */
 }
 
 .toast-icon.battery-low-icon {
     color: #FF3B30;
-    /* 灵动岛同款警告红色 */
 }
 
 .toast-text {
@@ -2062,7 +2054,6 @@ onUnmounted(() => {
     font-weight: 600;
     white-space: nowrap;
     opacity: 0.95;
-    /* 配合图标微调间距 */
     transform: translateX(-2px) translateY(-1px);
 }
 </style>
