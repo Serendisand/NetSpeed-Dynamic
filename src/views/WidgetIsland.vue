@@ -88,21 +88,6 @@
                             <div class="toast-text">{{ sysToastText }}</div>
                         </div>
 
-                        <div v-else-if="displayHardware" class="speed-box" key="hardware">
-                            <transition name="speed-fade" mode="out-in">
-                                <div v-if="isShowingCPU" class="speed-item" key="cpu">
-                                    <span class="label">CPU</span>
-                                    <span class="value" :class="{ 'high-usage': parseInt(cpuUsage) >= 90 }">{{ cpuUsage
-                                        }}</span>
-                                </div>
-                                <div v-else class="speed-item" key="ram">
-                                    <span class="label">RAM</span>
-                                    <span class="value" :class="{ 'high-usage': parseInt(memUsage) >= 90 }">{{ memUsage
-                                        }}</span>
-                                </div>
-                            </transition>
-                        </div>
-
                         <div v-else-if="displayMusic" class="music-ctl-box" :class="{ 'expanded': isMusicExpanded }"
                             :key="'music_' + musicBoxKey" @click="expandMusic" style="cursor: pointer;">
                             <div class="music-top-row">
@@ -190,7 +175,6 @@ const isMenuOpen = ref(false);
 
 // 记录当前是否显示上行网速（用于轮换）
 const isShowingUpload = ref(false);
-const isShowingCPU = ref(true);
 let speedCycleTimer: number | null = null;
 
 // 控制 DOM 真正的高宽变量与消息数据
@@ -336,11 +320,6 @@ const isHighUpload = ref(false);
 // 网络状态指示灯：good(绿), warning(黄), error(红)
 const networkStatus = ref<'good' | 'warning' | 'error'>('good');
 
-// 系统硬件监控相关
-const isHardwareMonEnabled = ref(localStorage.getItem('nsd_hardware_mon') === 'true');
-const cpuUsage = ref('0%');
-const memUsage = ref('0%');
-
 // 音乐控制功能开关
 const isMusicCtlEnabled = ref(localStorage.getItem('nsd_music_ctrl') === 'true');
 const isPlaying = ref(false);
@@ -361,26 +340,21 @@ const isPinnedToTaskbar = ref(localStorage.getItem('nsd_pin_taskbar') === 'true'
 const isPositionLocked = ref(localStorage.getItem('nsd_position_locked') === 'true');
 // 记录消息模式开关状态
 const isMsgModeEnabled = ref(localStorage.getItem('nsd_msg_mode') === 'true');
-// 轮换功能核心逻辑
-const isRotationEnabled = ref(localStorage.getItem('nsd_rotation_mode') === 'true');
-const currentRotIndex = ref(0); // 0=网速, 1=音乐, 2=硬件
-let rotationTimer: number | null = null;
 
 // 使用计算属性智能判断当前该显示谁
-const displaySpeed = computed(() => !isMsgActive.value && !displaySysToast.value && (isRotationEnabled.value ? currentRotIndex.value === 0 : (!isMusicCtlEnabled.value && !isHardwareMonEnabled.value)));
-const displayMusic = computed(() => !isMsgActive.value && !displaySysToast.value && (isRotationEnabled.value ? currentRotIndex.value === 1 : isMusicCtlEnabled.value));
-const displayHardware = computed(() => !isMsgActive.value && !displaySysToast.value && (isRotationEnabled.value ? currentRotIndex.value === 2 : isHardwareMonEnabled.value));
+const displaySpeed = computed(() => !isMsgActive.value && !displaySysToast.value && !isMusicCtlEnabled.value);
+const displayMusic = computed(() => !isMsgActive.value && !displaySysToast.value && isMusicCtlEnabled.value);
 
 // 辅助函数：获取当前状态应该拥有的默认大小
 const getBaseSize = () => {
-    // 网速岛 和 硬件监控尺寸统一缩小为 150x34
-    if (displaySpeed.value || displayHardware.value) return { w: 150, h: 34 };
-    // 硬件、音乐（未展开）等其他状态恢复默认的 260x42
+    // 网速岛尺寸统一缩小为 150x34
+    if (displaySpeed.value) return { w: 150, h: 34 };
+    // 音乐（未展开）等其他状态恢复默认的 260x42
     return { w: 260, h: 42 };
 };
 
 // 监听内容切换，触发丝滑动画过渡
-watch([displaySpeed, displayMusic, displayHardware], () => {
+watch([displaySpeed, displayMusic], () => {
     // 只有在没有被临时弹窗（消息、音乐展开）霸占时，才执行基础大小切换
     if (!isMsgActive.value && !displaySysToast.value && !isMusicExpanded.value && !isMusicExpanding.value) {
         const { w, h } = getBaseSize();
@@ -390,22 +364,8 @@ watch([displaySpeed, displayMusic, displayHardware], () => {
 
 // 专门用于控制右侧常驻指示灯的独立计算属性（完全不受消息通知打断）
 const showSpectrumIndicator = computed(() => {
-    return isRotationEnabled.value ? currentRotIndex.value === 1 : isMusicCtlEnabled.value;
+    return isMusicCtlEnabled.value;
 });
-
-const startRotation = () => {
-    if (rotationTimer) clearInterval(rotationTimer);
-    rotationTimer = window.setInterval(() => {
-        currentRotIndex.value = (currentRotIndex.value + 1) % 3;
-    }, 5000); // 5秒轮换一次
-};
-
-const stopRotation = () => {
-    if (rotationTimer) {
-        clearInterval(rotationTimer);
-        rotationTimer = null;
-    }
-};
 
 // 计算并吸附到左下角的方法
 const snapToBottomLeft = async () => {
@@ -1179,22 +1139,6 @@ onMounted(async () => {
         }
     });
 
-    // 监听轮换模式开关
-    await listen<{ enabled: boolean }>('control-rotation-mode', (event) => {
-        isRotationEnabled.value = event.payload.enabled;
-        if (isRotationEnabled.value) {
-            startRotation();
-        } else {
-            stopRotation();
-            currentRotIndex.value = 0; // 关闭时重置回网速
-        }
-    });
-
-    // 启动时如果开了轮换，就跑起来
-    if (isRotationEnabled.value) {
-        startRotation();
-    }
-
     // 初始化位置追踪
     const appWindow = getCurrentWindow();
     try {
@@ -1220,11 +1164,6 @@ onMounted(async () => {
         isIslandVisible.value = true;
     }
 
-    // 监听来自控制台的系统硬件监控开关
-    await listen<{ enabled: boolean }>('control-hardware-mon', (event) => {
-        isHardwareMonEnabled.value = event.payload.enabled;
-    });
-
     fetchSpeedStats();
     checkNetworkLatency();
 
@@ -1233,10 +1172,6 @@ onMounted(async () => {
         // 网速轮换
         if (displaySpeed.value) {
             isShowingUpload.value = !isShowingUpload.value;
-        }
-        // 硬件轮换
-        if (displayHardware.value) {
-            isShowingCPU.value = !isShowingCPU.value;
         }
     }, 5000);
 
@@ -1250,25 +1185,12 @@ onMounted(async () => {
 
         // 刷新网速
         fetchSpeedStats();
-
-        // 刷新硬件状态
-        if (isHardwareMonEnabled.value || isRotationEnabled.value) {
-            try {
-                const [cpu, usedMem, totalMem] = await invoke<[number, number, number]>('get_hardware_stats');
-                cpuUsage.value = Math.round(cpu) + '%';
-                if (totalMem > 0) {
-                    memUsage.value = Math.round((usedMem / totalMem) * 100) + '%';
-                }
-            } catch (err) {
-                console.error('获取硬件信息失败:', err);
-            }
-        }
     }, 800) as unknown as number;
 
 
     // 2. 中频定时器：专门负责音乐状态同步（每 2000ms 刷新一次即可）
     musicTimer = setInterval(() => {
-        if (isMusicCtlEnabled.value || isRotationEnabled.value) {
+        if (isMusicCtlEnabled.value) {
             syncMusicStatus();
         }
     }, 2000);
@@ -1372,7 +1294,6 @@ onUnmounted(() => {
     window.removeEventListener('blur', collapseMusic);
     clearInterval(speedTimer);
     clearInterval(pingTimer);
-    stopRotation();
     clearInterval(musicTimer);
     clearInterval(notifyTimer);
     clearInterval(spectrumTimer);

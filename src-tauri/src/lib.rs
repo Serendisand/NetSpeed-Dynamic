@@ -6,7 +6,7 @@ mod system_events;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicU32, Ordering};
 use tauri::{State, Manager, Emitter};
-use sysinfo::{Networks, System};
+use sysinfo::{Networks};
 use std::net::{SocketAddr, TcpStream};
 use std::time::{Duration, Instant};
 use tauri_plugin_autostart::MacosLauncher;
@@ -204,15 +204,6 @@ async fn start_island_animation(
 
 struct AppState {
     networks: Mutex<Networks>,
-    system: Mutex<System>,
-}
-
-#[tauri::command]
-fn get_hardware_stats(state: State<'_, AppState>) -> (f32, u64, u64) {
-    let mut sys = state.system.lock().unwrap();
-    sys.refresh_cpu_usage(); 
-    sys.refresh_memory();    
-    (sys.global_cpu_info().cpu_usage(), sys.used_memory(), sys.total_memory())
 }
 
 #[tauri::command]
@@ -254,20 +245,17 @@ fn is_widget_visible(app: tauri::AppHandle) -> bool {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let networks = Networks::new_with_refreshed_list();
-    let mut system = System::new_all();
-    system.refresh_cpu_usage();
 
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|_app, _args, _cwd| {}))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, Some(vec!["--autostart"])))
-        .manage(AppState { networks: Mutex::new(networks), system: Mutex::new(system) })
+        .manage(AppState { networks: Mutex::new(networks) })
         .invoke_handler(tauri::generate_handler![
             get_network_stats,
             is_widget_visible,
             get_network_latency,
             notification::fetch_latest_notification,
-            get_hardware_stats,
             force_window_topmost,
             set_window_bounds,
             start_island_animation,
