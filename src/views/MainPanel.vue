@@ -9,11 +9,6 @@
                         <rect x="1" y="5" width="10" height="1.5" rx="0.5" />
                     </svg>
                 </button>
-                <button class="titlebar-btn" @click="maximizeWindow">
-                    <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2">
-                        <rect x="1.5" y="1.5" width="9" height="9" rx="1" />
-                    </svg>
-                </button>
                 <button class="titlebar-btn close-btn" @click="closeWindow">
                     <svg viewBox="0 0 12 12" stroke="currentColor" stroke-width="1.2" stroke-linecap="round">
                         <path d="M2.5 2.5L9.5 9.5M9.5 2.5L2.5 9.5" />
@@ -33,7 +28,7 @@
 
             <div class="header-controls">
                 <button class="dynamicset-btn" :class="{ 'is-active': isDynamicSet }" @click="toggleDynamicSet">
-                    灵动岛设置
+                    LiveAcitve 设置
                 </button>
                 <span class="control-separator"></span>
 
@@ -91,7 +86,6 @@
 
                 <div class="card settings-card" v-if="rightPanel === 'settings'">
                     <h3>常规设置</h3>
-
                     <div class="setting-item flex-row-item">
                         <div class="item-meta">
                             <span class="item-title">主题颜色</span>
@@ -103,7 +97,6 @@
                             <option value="system">跟随系统</option>
                         </select>
                     </div>
-
                     <div class="setting-item">
                         <div class="item-meta">
                             <span class="item-title">开机自启动</span>
@@ -114,30 +107,24 @@
                             <span class="slider"></span>
                         </label>
                     </div>
-
                     <div class="setting-item slider-item">
                         <div class="item-meta" style="width: 100%;">
                             <div class="combo-title-row">
                                 <span class="item-title">灵动岛不透明度</span>
-
                                 <span class="title-separator">|</span>
-
                                 <span class="item-title-sec">
                                     置于任务栏
                                     <span class="tooltip-wrapper" data-tooltip="若要在全屏游戏中使用灵动岛建议关闭此项">
                                         <p class="set-item-tips-tag">🙋</p>
                                     </span>
                                 </span>
-
                                 <label class="switch mini-switch" style="opacity: 0.8;">
                                     <input type="checkbox" v-model="pinToTaskbar" @change="togglePinTaskbar">
                                     <span class="slider"></span>
                                 </label>
                             </div>
-
                             <span class="item-desc">调节灵动岛的背景透明度 ({{ opacity }}%)</span>
                         </div>
-
                         <input type="range" min="0" max="100" v-model="opacity" class="range-input" />
                     </div>
                 </div>
@@ -151,7 +138,6 @@
                                 <option value="line">折线图</option>
                             </select>
                         </div>
-
                         <div class="stats-overview">
                             <div class="stat-box">
                                 <span class="stat-label">总上传</span>
@@ -169,100 +155,138 @@
                                 <span class="stat-unit">{{ formatBytesUnit(monthTraffic) }}</span>
                             </div>
                         </div>
-
                         <div ref="statsChartRef" class="stats-chart-container"></div>
                     </div>
                 </template>
-            </template>
 
-            <template v-else>
-                <!-- 移除内部标题头，直接使用 grid 布局铺满 -->
-                <div class="dynamicset-grid">
-                    <div class="set-item-top"
-                        style="grid-column: span 2; flex-direction: column; align-items: flex-start; justify-content: center; gap: 8px;">
-                        <div class="set-item-meta"
-                            style="flex-direction: row; justify-content: space-between; width: 100%; align-items: center;">
-                            <span class="set-item-title-top">音乐控制平台</span>
-                            <span class="set-item-desc" style="font-size: 11px;">选择灵动岛显示的音乐平台</span>
-                        </div>
-                        <div class="capsule-switch player-grid">
-                            <div class="capsule-btn" :class="{ 'is-active': targetPlayer === 'netease' }"
-                                @click="setTargetPlayer('netease')">
-                                <img src="../assets/musci163.svg" class="platform-icon" alt="icon">
-                                网易云
-                            </div>
-                            <div class="capsule-btn" :class="{ 'is-active': targetPlayer === 'spotify' }"
-                                @click="setTargetPlayer('spotify')">
-                                <img src="../assets/Spotify.svg" class="platform-icon" alt="icon">
-                                Spotify
-                            </div>
-                            <div class="capsule-btn" :class="{ 'is-active': targetPlayer === 'apple' }"
-                                @click="setTargetPlayer('apple')">
-                                <img src="../assets/applemusic.svg" class="platform-icon" alt="icon">
-                                Apple
-                            </div>
-                            <div class="capsule-btn" :class="{ 'is-active': targetPlayer === 'qqmusic' }"
-                                @click="setTargetPlayer('qqmusic')">
-                                <img src="../assets/qqmusic.svg" class="platform-icon" alt="icon">
-                                QQ音乐
-                            </div>
-                            <div class="capsule-btn" :class="{ 'is-active': targetPlayer === 'kugou' }"
-                                @click="setTargetPlayer('kugou')">
-                                <img src="../assets/kugou.svg" class="platform-icon" alt="icon">
-                                酷狗
-                            </div>
-                            <div class="capsule-btn" :class="{ 'is-active': targetPlayer === 'echo' }"
-                                @click="setTargetPlayer('echo')">
-                                <img src="../assets/echomusic.ico" class="platform-icon" alt="icon">
-                                EchoMusic
-                            </div>
-                        </div>
-                    </div>
-                    <div class="set-item">
+                <div class="dynamicset-grid bottom-grid-card">
+                    <div class="set-item" :class="{ 'is-dropdown-open': isThemeDropdownOpen }">
                         <div class="set-item-meta">
                             <span class="set-item-title">灵动岛颜色</span>
-                            <span class="set-item-desc">切换灵动岛的默认背景色调</span>
+                            <span class="set-item-desc">切换默认背景色调</span>
                         </div>
-                        <div class="capsule-switch">
-                            <div class="capsule-btn" :class="{ 'is-active': islandTheme === 'black' }"
-                                @click="islandTheme = 'black'">暗色</div>
-                            <div class="capsule-btn" :class="{ 'is-active': islandTheme === 'white' }"
-                                @click="islandTheme = 'white'">亮色</div>
+                        <div class="custom-dropdown" tabindex="0" @blur="isThemeDropdownOpen = false">
+                            <div class="dropdown-trigger" @click="isThemeDropdownOpen = !isThemeDropdownOpen">
+                                <div class="current-item">
+                                    <span class="color-preview-icon" :class="'theme-' + islandTheme"></span>
+                                    <template v-if="islandTheme === 'black'">暗色</template>
+                                    <template v-else-if="islandTheme === 'white'">亮色</template>
+                                </div>
+                                <svg viewBox="0 0 24 24" class="arrow-icon" :class="{ 'is-open': isThemeDropdownOpen }">
+                                    <path d="M7 10l5 5 5-5" fill="none" stroke="currentColor" stroke-width="2"
+                                        stroke-linecap="round" />
+                                </svg>
+                            </div>
+
+                            <transition name="dropdown">
+                                <div class="dropdown-menu" v-show="isThemeDropdownOpen">
+                                    <div class="dropdown-item" :class="{ 'is-active': islandTheme === 'black' }"
+                                        @click="handleSelectTheme('black')">
+                                        <span class="color-preview-icon theme-black"></span> 暗色
+                                    </div>
+                                    <div class="dropdown-item" :class="{ 'is-active': islandTheme === 'white' }"
+                                        @click="handleSelectTheme('white')">
+                                        <span class="color-preview-icon theme-white"></span> 亮色
+                                    </div>
+                                </div>
+                            </transition>
                         </div>
                     </div>
+                    <div class="set-item" :class="{ 'is-dropdown-open': isPlayerDropdownOpen }">
+                        <div class="set-item-meta">
+                            <span class="set-item-title">目标媒体平台</span>
+                            <span class="set-item-desc">选择音乐媒体平台</span>
+                        </div>
+                        <div class="custom-dropdown" tabindex="0" @blur="isPlayerDropdownOpen = false">
+                            <div class="dropdown-trigger" @click="isPlayerDropdownOpen = !isPlayerDropdownOpen">
+                                <div class="current-item">
+                                    <template v-if="targetPlayer === 'netease'"><img src="../assets/musci163.svg"
+                                            class="platform-icon"> 网易云</template>
+                                    <template v-else-if="targetPlayer === 'spotify'"><img src="../assets/Spotify.svg"
+                                            class="platform-icon"> Spotify</template>
+                                    <template v-else-if="targetPlayer === 'apple'"><img src="../assets/applemusic.svg"
+                                            class="platform-icon"> Apple</template>
+                                    <template v-else-if="targetPlayer === 'qqmusic'"><img src="../assets/qqmusic.svg"
+                                            class="platform-icon"> QQ音乐</template>
+                                    <template v-else-if="targetPlayer === 'kugou'"><img src="../assets/kugou.svg"
+                                            class="platform-icon"> 酷狗</template>
+                                    <template v-else-if="targetPlayer === 'echo'"><img src="../assets/echomusic.ico"
+                                            class="platform-icon"> EchoMusic</template>
+                                </div>
+                                <svg viewBox="0 0 24 24" class="arrow-icon"
+                                    :class="{ 'is-open': isPlayerDropdownOpen }">
+                                    <path d="M7 10l5 5 5-5" fill="none" stroke="currentColor" stroke-width="2"
+                                        stroke-linecap="round" />
+                                </svg>
+                            </div>
 
+                            <transition name="dropdown">
+                                <div class="dropdown-menu" v-show="isPlayerDropdownOpen">
+                                    <div class="dropdown-item" :class="{ 'is-active': targetPlayer === 'netease' }"
+                                        @click="handleSelectPlayer('netease')">
+                                        <img src="../assets/musci163.svg" class="platform-icon"> 网易云
+                                    </div>
+                                    <div class="dropdown-item" :class="{ 'is-active': targetPlayer === 'spotify' }"
+                                        @click="handleSelectPlayer('spotify')">
+                                        <img src="../assets/Spotify.svg" class="platform-icon"> Spotify
+                                    </div>
+                                    <div class="dropdown-item" :class="{ 'is-active': targetPlayer === 'apple' }"
+                                        @click="handleSelectPlayer('apple')">
+                                        <img src="../assets/applemusic.svg" class="platform-icon"> Apple
+                                    </div>
+                                    <div class="dropdown-item" :class="{ 'is-active': targetPlayer === 'qqmusic' }"
+                                        @click="handleSelectPlayer('qqmusic')">
+                                        <img src="../assets/qqmusic.svg" class="platform-icon"> QQ音乐
+                                    </div>
+                                    <div class="dropdown-item" :class="{ 'is-active': targetPlayer === 'kugou' }"
+                                        @click="handleSelectPlayer('kugou')">
+                                        <img src="../assets/kugou.svg" class="platform-icon"> 酷狗
+                                    </div>
+                                    <div class="dropdown-item" :class="{ 'is-active': targetPlayer === 'echo' }"
+                                        @click="handleSelectPlayer('echo')">
+                                        <img src="../assets/echomusic.ico" class="platform-icon"> EchoMusic
+                                    </div>
+                                </div>
+                            </transition>
+                        </div>
+                    </div>
                     <div class="set-item">
                         <div class="set-item-meta">
-                            <span class="set-item-title">音乐控制器 <p class="set-item-pro-tag">PRO</p></span>
-                            <span class="set-item-desc">支持媒体控制及信息显示</span>
+                            <span class="set-item-title">媒体控制器</span>
+                            <span class="set-item-desc">支持 SMTC 控制及信息显示</span>
                         </div>
                         <label class="switch">
                             <input type="checkbox" v-model="enableMusicCtrl">
                             <span class="slider"></span>
                         </label>
                     </div>
-
                     <div class="set-item">
                         <div class="set-item-meta">
-                            <span class="set-item-title">消息通知接收 <p class="set-item-pro-tag">PRO</p></span>
-                            <span class="set-item-desc">启用系统控制中心消息弹窗提醒</span>
+                            <span class="set-item-title">消息通知接收</span>
+                            <span class="set-item-desc">启用弹窗提醒</span>
                         </div>
                         <label class="switch">
                             <input type="checkbox" v-model="enableMsgNotify" @change="toggleMsgNotify">
                             <span class="slider"></span>
                         </label>
                     </div>
-
                     <div class="set-item">
                         <div class="set-item-meta">
-                            <span class="set-item-title">静默消息模式</span>
-                            <span class="set-item-desc">自动隐藏，收到消息后才弹出</span>
+                            <span class="set-item-title">静默模式</span>
+                            <span class="set-item-desc">收到消息后才弹出</span>
                         </div>
                         <label class="switch">
                             <input type="checkbox" v-model="msgModeEnabled" @change="toggleMsgMode">
                             <span class="slider"></span>
                         </label>
                     </div>
+                </div>
+            </template>
+
+            <template v-else>
+                <div class="blank-dynamic-page">
+                    <h3 style="margin:0 0 8px 0; color: var(--item-title-color);">实时活动设置已预留</h3>
+                    <p style="margin:0; font-size: 13px;">未来可以在这里添加实时活动相关配置...</p>
                 </div>
             </template>
         </div>
@@ -331,7 +355,7 @@ const isDynamicSet = ref(false);
 const isChecking = ref(false);
 const hasNewVersion = ref(false);
 
-// --- 音乐控制平台切换功能 ---
+// 音乐控制平台切换功能
 const targetPlayer = ref(localStorage.getItem('nsd_target_player') || 'netease');
 
 const setTargetPlayer = async (player: string) => {
@@ -342,6 +366,20 @@ const setTargetPlayer = async (player: string) => {
     } catch (e) {
         console.error('切换平台失败', e);
     }
+};
+
+// 下拉菜单显隐状态
+const isPlayerDropdownOpen = ref(false);
+const handleSelectPlayer = (player: string) => {
+    setTargetPlayer(player);
+    isPlayerDropdownOpen.value = false;
+};
+
+// 灵动岛颜色下拉菜单的状态与方法
+const isThemeDropdownOpen = ref(false);
+const handleSelectTheme = (theme: string) => {
+    islandTheme.value = theme;        // 更新颜色值
+    isThemeDropdownOpen.value = false; // 自动收起下拉菜单
 };
 
 // 灵动岛设置相关的 UI 状态绑定
@@ -872,14 +910,8 @@ onMounted(async () => {
         console.error("获取应用版本号失败:", e);
     }
 
-    // 监听来自灵动岛右键菜单的“打开设置”信号
+    // 监听来自灵动岛右键菜单的“打开控制台”信号
     await listen('open-settings-panel', async () => {
-        // 1. 如果当前不在灵动岛设置页，就切过去
-        if (!isDynamicSet.value) {
-            isDynamicSet.value = true;
-        }
-
-        // 2. 唤醒并聚焦主窗口
         const appWindow = getCurrentWindow();
         await appWindow.show();        // 确保窗口显示
         await appWindow.unminimize();  // 如果最小化了，就恢复
@@ -920,9 +952,6 @@ const toggleWidget = async () => {
 // 控制窗口功能
 const minimizeWindow = async () => {
     await getCurrentWindow().minimize();
-};
-const maximizeWindow = async () => {
-    await getCurrentWindow().toggleMaximize();
 };
 const closeWindow = async () => {
     await getCurrentWindow().hide();
@@ -1060,12 +1089,12 @@ const closeWindow = async () => {
 
 .panel-container {
     background-color: var(--bg-body);
-    padding: 48px 32px 28px 32px;
-    max-width: 978px;
+    padding: 36px 32px 16px 32px;
+    max-width: 900px;
     margin: 0 auto;
     display: flex;
     flex-direction: column;
-    min-height: calc(100vh - 56px);
+    min-height: calc(100vh - 52px);
     position: relative;
 }
 
@@ -1073,7 +1102,7 @@ const closeWindow = async () => {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 24px;
+    margin-bottom: 16px;
 }
 
 .brand {
@@ -1128,13 +1157,13 @@ const closeWindow = async () => {
 .divider {
     border: none;
     border-top: 1px solid var(--divider-border);
-    margin-bottom: 24px;
+    margin-bottom: 16px;
 }
 
 .main-content {
     display: grid;
     grid-template-columns: 1fr 1.3fr;
-    gap: 18px;
+    gap: 16px;
     flex-grow: 1;
     transition: all 0.3s ease;
 }
@@ -1148,7 +1177,7 @@ const closeWindow = async () => {
     background: var(--card-bg);
     border: 1px solid var(--card-border);
     border-radius: 20px;
-    padding: 24px;
+    padding: 16px 20px;
     display: flex;
     flex-direction: column;
     box-shadow: 0 4px 20px -2px var(--card-shadow);
@@ -1169,8 +1198,8 @@ const closeWindow = async () => {
 .speed-monitor {
     display: flex;
     flex-direction: column;
-    gap: 20px;
-    margin-bottom: 24px;
+    gap: 12px;
+    margin-bottom: 16px;
 }
 
 .speed-item {
@@ -1237,7 +1266,7 @@ const closeWindow = async () => {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 16px 0;
+    padding: 12px 0;
     border-bottom: 1px solid var(--chart-border);
 }
 
@@ -1249,7 +1278,7 @@ const closeWindow = async () => {
 .slider-item {
     flex-direction: column;
     align-items: flex-start;
-    gap: 16px;
+    gap: 10px;
 }
 
 .flex-row-item {
@@ -1584,19 +1613,18 @@ input:checked+.slider:before {
 /* 双列网格结构，自动填充 */
 .dynamicset-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 0;
+    align-content: center !important;
+    grid-template-columns: 1fr 1fr 1fr;
+    row-gap: 5px;
     background: var(--card-bg);
     border: 1px solid var(--card-border);
     border-radius: 20px;
-    padding: 0;
     box-shadow: 0 4px 20px -2px var(--card-shadow);
     max-height: calc(100vh - 180px);
     overflow-y: auto;
     align-content: start;
 }
 
-/* 👇 新增：自定义迷你滑块 (Webkit 标准) */
 .dynamicset-grid::-webkit-scrollbar {
     width: 5px;
 }
@@ -1624,23 +1652,9 @@ input:checked+.slider:before {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    height: 92px;
-    padding: 0 24px;
+    height: 70px;
+    padding: 0 16px;
     box-sizing: border-box;
-}
-
-.set-item-top {
-    background: transparent;
-    border: none;
-    margin: 0;
-    border-radius: 0;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    height: 75px;
-    padding: 0 24px;
-    box-sizing: border-box;
-    transform: translateY(5px);
 }
 
 .disabled-set-item {
@@ -1660,51 +1674,6 @@ input:checked+.slider:before {
     align-items: center;
     max-height: 24px;
     color: var(--item-title-color);
-}
-
-.set-item-title-top {
-    font-size: 13px;
-    font-weight: 600;
-    display: flex;
-    align-items: center;
-    max-height: 24px;
-    color: var(--item-title-color);
-}
-
-.set-item-pro-tag {
-    font-size: 11px;
-    font-weight: 600;
-    color: var(--btn-pri-color);
-    background: var(--btn-pri-bg);
-    padding: 2px 6px;
-    border-radius: 4px;
-    margin-left: 6px;
-    max-height: 24px;
-}
-
-.set-item-new-tag {
-    font-size: 10px;
-    font-weight: 600;
-    color: #dd1f1f;
-    background: #b9101020;
-    padding: 2px 6px;
-    border-radius: 4px;
-    margin-left: 6px;
-    max-height: 24px;
-    transform: translateY(1px);
-}
-
-.set-item-tips-tag {
-    font-size: 10px;
-    font-weight: bold;
-    color: var(--btn-pri-color);
-    background: transparent;
-    padding: 2px 6px;
-    border-radius: 4px;
-    margin-left: 6px;
-    max-height: 24px;
-    transform: translateY(1px);
-    opacity: 0.8;
 }
 
 /* Tooltip 容器 */
@@ -1765,36 +1734,6 @@ input:checked+.slider:before {
     color: var(--item-desc-color);
 }
 
-/* 胶囊形滑块开关 (保持不变，仅确保层级) */
-.capsule-switch {
-    display: flex;
-    background: var(--slider-bg);
-    border-radius: 6px;
-    padding: 2px;
-    position: relative;
-    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.05);
-    flex-shrink: 0;
-}
-
-.capsule-btn {
-    padding: 4px 14px;
-    font-size: 12px;
-    font-weight: 600;
-    border-radius: 4px;
-    cursor: pointer;
-    color: var(--text-body);
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    z-index: 1;
-    opacity: 0.6;
-}
-
-.capsule-btn.is-active {
-    background: var(--card-bg);
-    color: var(--item-title-color);
-    box-shadow: 0 1px 4px var(--card-shadow-hover);
-    opacity: 1;
-}
-
 
 
 
@@ -1805,7 +1744,7 @@ input:checked+.slider:before {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 20px;
+    margin-bottom: 12px;
 }
 
 .card-header-row h3 {
@@ -1836,7 +1775,7 @@ input:checked+.slider:before {
 .stats-overview {
     display: flex;
     gap: 8px;
-    margin-bottom: 20px;
+    margin-bottom: 12px;
 }
 
 .stat-box {
@@ -1931,44 +1870,183 @@ input:disabled+.slider {
     opacity: 0.5;
 }
 
-/* 音乐平台六宫格样式 */
-.player-grid {
-    display: grid;
-    grid-template-columns: repeat(6, 1fr);
-    gap: 4px;
-    width: 100%;
-    padding: 4px;
-    box-sizing: border-box;
+/* =========================================
+   自定义下拉选择器（优化紧凑版）
+   ========================================= */
+
+/* 核心修复 1：当下拉菜单打开时，强行将该条目的层级提升到最顶层，击穿 transform 的层级压制 */
+.set-item.is-dropdown-open {
+    z-index: 10;
 }
 
-/* 改用 flex 布局，让图片和文字完美对齐 */
-.player-grid .capsule-btn {
+.set-item-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex-shrink: 0;
+    /* 核心修复 2：强制左侧文字不收缩，防止被挤压 */
+    min-width: 0;
+}
+
+.custom-dropdown {
+    position: relative;
+    outline: none;
+}
+
+/* 优化触发器：固定紧凑宽度，防止横向无限拉长 */
+.dropdown-trigger {
     display: flex;
     align-items: center;
-    justify-content: center;
-    gap: 4px;
-    /* 图标和文字之间的间距 */
-    padding: 4px 0;
-    font-size: 11px;
-    white-space: nowrap;
+    justify-content: space-between;
+    gap: 6px;
+    padding: 6px 10px;
+    background: var(--select-bg);
+    border: 1px solid var(--select-border);
+    border-radius: 8px;
+    cursor: pointer;
+    width: 110px;
+    /* 固定紧凑宽度 */
+    box-sizing: border-box;
+    transition: all 0.2s ease;
 }
 
-/* 限制图标的尺寸，避免图片太大把盒子撑爆 */
-.platform-icon {
+.dropdown-trigger:hover {
+    border-color: var(--slider-checked-bg);
+}
+
+.current-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--select-text);
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    /* 安全防爆：超出打点 */
+}
+
+.current-item .platform-icon {
     width: 14px;
     height: 14px;
     object-fit: contain;
-    /* 保证图标不变形 */
-    opacity: 0.8;
-    /* 给一点点透明度，显得不那么刺眼 */
-    transition: opacity 0.2s ease;
-    transform: translateX(-3px) translateY(1px);
     border-radius: 3px;
 }
 
-/* 当选中该平台时，让图标变亮完全不透明 */
-.capsule-btn.is-active .platform-icon {
+.arrow-icon {
+    width: 12px;
+    height: 12px;
+    color: var(--item-desc-color);
+    transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    flex-shrink: 0;
+}
+
+.arrow-icon.is-open {
+    transform: rotate(180deg);
+}
+
+/* 下拉菜单面板调整 */
+.dropdown-menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    width: 116px;
+    background: var(--modal-bg);
+    border: 1px solid var(--modal-border);
+    border-radius: 10px;
+    padding: 4px;
+    box-shadow: 0 10px 25px var(--card-shadow-hover);
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    max-height: 130px;
+    overflow-y: auto;
+}
+
+/* 隐藏原生粗糙的滚动条，替换为你主题风格的细线条 */
+.dropdown-menu::-webkit-scrollbar {
+    width: 4px;
+}
+
+.dropdown-menu::-webkit-scrollbar-track {
+    background: transparent;
+    margin: 4px 0;
+    /* 让滚动条上下留点空隙，更好看 */
+}
+
+.dropdown-menu::-webkit-scrollbar-thumb {
+    background-color: var(--slider-bg);
+    border-radius: 4px;
+}
+
+.dropdown-menu::-webkit-scrollbar-thumb:hover {
+    background-color: var(--slider-checked-bg);
+}
+
+.dropdown-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-body);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.dropdown-item .platform-icon {
+    width: 14px;
+    height: 14px;
+    object-fit: contain;
+    border-radius: 3px;
+    opacity: 0.8;
+}
+
+.dropdown-item:hover {
+    background: var(--btn-sec-bg);
+}
+
+.dropdown-item.is-active {
+    background: var(--arrow-up-bg);
+    color: var(--arrow-up-color);
+}
+
+.dropdown-item.is-active .platform-icon {
     opacity: 1;
+}
+
+/* 下拉动画保持不变 */
+.dropdown-enter-active,
+.dropdown-leave-active {
+    transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+    transform-origin: top right;
+}
+
+.dropdown-enter-from,
+.dropdown-leave-to {
+    opacity: 0;
+    transform: scaleY(0.95) translateY(-4px);
+}
+
+.bottom-grid-card {
+    grid-column: 1 / -1;
+    max-height: none;
+    overflow: visible;
+}
+
+/* 留白页面居中 */
+.blank-dynamic-page {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 300px;
+    color: var(--item-desc-color);
 }
 
 /* 新增的自定义标题栏样式 */
@@ -1977,12 +2055,11 @@ input:disabled+.slider {
     top: 0;
     left: 0;
     right: 0;
-    height: 38px;
+    height: 32px;
     display: flex;
     justify-content: flex-end;
     align-items: center;
     z-index: 9999;
-    /* 取消右上角的圆角溢出，如果你设置了透明圆角窗口 */
     border-top-left-radius: inherit;
     border-top-right-radius: inherit;
 }
@@ -1991,14 +2068,12 @@ input:disabled+.slider {
 .titlebar-drag-area {
     flex-grow: 1;
     height: 100%;
-    /* 允许 tauri 识别原生拖拽 */
     -webkit-app-region: drag;
 }
 
 .titlebar-controls {
     display: flex;
     height: 100%;
-    /* 按钮区域禁止拖拽，防止误触 */
     -webkit-app-region: no-drag;
 }
 
@@ -2006,7 +2081,7 @@ input:disabled+.slider {
     background: transparent;
     border: none;
     color: var(--text-body);
-    width: 46px;
+    width: 45px;
     height: 100%;
     display: flex;
     align-items: center;
@@ -2032,5 +2107,34 @@ input:disabled+.slider {
 .close-btn:hover {
     background-color: #ff4757 !important;
     color: #ffffff !important;
+}
+
+/* 颜色选择器专用预览小方块 */
+.color-preview-icon {
+    width: 14px;
+    height: 14px;
+    border-radius: 3px;
+    flex-shrink: 0;
+    box-sizing: border-box;
+    transition: all 0.2s ease;
+}
+
+/* 暗色示例方块 */
+.color-preview-icon.theme-black {
+    background-color: #1a1a1a;
+}
+
+/* 亮色示例方块 */
+.color-preview-icon.theme-white {
+    background-color: #ffffff;
+}
+
+.dropdown-item .color-preview-icon {
+    opacity: 0.8;
+}
+
+.dropdown-item:hover .color-preview-icon,
+.dropdown-item.is-active .color-preview-icon {
+    opacity: 1;
 }
 </style>

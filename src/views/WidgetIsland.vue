@@ -790,13 +790,13 @@ const handleRightClick = async (event: MouseEvent) => {
         return;
     }
 
-    // 打开设置
+    // 打开控制台
     const openSettingsItem = await MenuItem.new({
-        text: '打开设置',
+        text: '打开控制台',
         id: 'open_settings',
         action: async () => {
             await emit('open-settings-panel');
-            showToast('已打开设置');
+            showToast('已打开控制台');
         }
     });
 
