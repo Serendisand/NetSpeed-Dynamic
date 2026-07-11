@@ -28,6 +28,9 @@
     "core:window:allow-set-focus",
     "core:app:allow-version",
     "autostart:default",
-    "opener:default"
+    "opener:default",
+    "core:window:allow-minimize",
+    "core:window:allow-maximize",
+    "core:window:allow-close"
   ]
 }

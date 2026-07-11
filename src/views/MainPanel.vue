@@ -1,5 +1,27 @@
 <template>
     <div class="panel-container">
+        <div class="custom-titlebar">
+            <div data-tauri-drag-region class="titlebar-drag-area"></div>
+
+            <div class="titlebar-controls">
+                <button class="titlebar-btn" @click="minimizeWindow">
+                    <svg viewBox="0 0 12 12" fill="currentColor">
+                        <rect x="1" y="5" width="10" height="1.5" rx="0.5" />
+                    </svg>
+                </button>
+                <button class="titlebar-btn" @click="maximizeWindow">
+                    <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2">
+                        <rect x="1.5" y="1.5" width="9" height="9" rx="1" />
+                    </svg>
+                </button>
+                <button class="titlebar-btn close-btn" @click="closeWindow">
+                    <svg viewBox="0 0 12 12" stroke="currentColor" stroke-width="1.2" stroke-linecap="round">
+                        <path d="M2.5 2.5L9.5 9.5M9.5 2.5L2.5 9.5" />
+                    </svg>
+                </button>
+            </div>
+        </div>
+
         <header class="panel-header">
             <div class="brand">
                 <img src="../assets/logo.png" class="logo-icon">
@@ -894,6 +916,17 @@ const toggleWidget = async () => {
     await emit('control-island-visibility', { show: nextState });
     isWidgetVisible.value = nextState;
 };
+
+// 控制窗口功能
+const minimizeWindow = async () => {
+    await getCurrentWindow().minimize();
+};
+const maximizeWindow = async () => {
+    await getCurrentWindow().toggleMaximize();
+};
+const closeWindow = async () => {
+    await getCurrentWindow().hide();
+};
 </script>
 
 <style scoped>
@@ -1027,12 +1060,13 @@ const toggleWidget = async () => {
 
 .panel-container {
     background-color: var(--bg-body);
-    padding: 28px 32px;
+    padding: 48px 32px 28px 32px;
     max-width: 978px;
     margin: 0 auto;
     display: flex;
     flex-direction: column;
     min-height: calc(100vh - 56px);
+    position: relative;
 }
 
 .panel-header {
@@ -1935,5 +1969,68 @@ input:disabled+.slider {
 /* 当选中该平台时，让图标变亮完全不透明 */
 .capsule-btn.is-active .platform-icon {
     opacity: 1;
+}
+
+/* 新增的自定义标题栏样式 */
+.custom-titlebar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 38px;
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    z-index: 9999;
+    /* 取消右上角的圆角溢出，如果你设置了透明圆角窗口 */
+    border-top-left-radius: inherit;
+    border-top-right-radius: inherit;
+}
+
+/* 占据剩余空间作为拖拽区 */
+.titlebar-drag-area {
+    flex-grow: 1;
+    height: 100%;
+    /* 允许 tauri 识别原生拖拽 */
+    -webkit-app-region: drag;
+}
+
+.titlebar-controls {
+    display: flex;
+    height: 100%;
+    /* 按钮区域禁止拖拽，防止误触 */
+    -webkit-app-region: no-drag;
+}
+
+.titlebar-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-body);
+    width: 46px;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.titlebar-btn svg {
+    width: 11px;
+    height: 11px;
+    opacity: 0.8;
+}
+
+.titlebar-btn:hover {
+    background-color: var(--btn-sec-bg);
+}
+
+.titlebar-btn:hover svg {
+    opacity: 1;
+}
+
+.close-btn:hover {
+    background-color: #ff4757 !important;
+    color: #ffffff !important;
 }
 </style>
