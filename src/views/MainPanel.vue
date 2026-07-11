@@ -86,16 +86,44 @@
 
                 <div class="card settings-card" v-if="rightPanel === 'settings'">
                     <h3>控制台设置</h3>
-                    <div class="setting-item flex-row-item">
+                    <div class="setting-item flex-row-item" :class="{ 'is-dropdown-open': isThemeModeDropdownOpen }">
                         <div class="item-meta">
                             <span class="item-title">主题颜色</span>
                             <span class="item-desc">切换控制台主题色</span>
                         </div>
-                        <select v-model="themeMode" class="theme-select" @change="handleThemeChange">
-                            <option value="light">浅色模式</option>
-                            <option value="dark">深色模式</option>
-                            <option value="system">跟随系统</option>
-                        </select>
+
+                        <div class="custom-dropdown" tabindex="0" @blur="isThemeModeDropdownOpen = false">
+                            <div class="dropdown-trigger" style="width: 110px;"
+                                @click="isThemeModeDropdownOpen = !isThemeModeDropdownOpen">
+                                <div class="current-item">
+                                    <template v-if="themeMode === 'light'">浅色模式</template>
+                                    <template v-else-if="themeMode === 'dark'">深色模式</template>
+                                    <template v-else-if="themeMode === 'system'">跟随系统</template>
+                                </div>
+                                <svg viewBox="0 0 24 24" class="arrow-icon"
+                                    :class="{ 'is-open': isThemeModeDropdownOpen }">
+                                    <path d="M7 10l5 5 5-5" fill="none" stroke="currentColor" stroke-width="2"
+                                        stroke-linecap="round" />
+                                </svg>
+                            </div>
+
+                            <transition name="dropdown">
+                                <div class="dropdown-menu" v-show="isThemeModeDropdownOpen" style="width: 100%;">
+                                    <div class="dropdown-item" :class="{ 'is-active': themeMode === 'light' }"
+                                        @click="handleSelectThemeMode('light')">
+                                        浅色模式
+                                    </div>
+                                    <div class="dropdown-item" :class="{ 'is-active': themeMode === 'dark' }"
+                                        @click="handleSelectThemeMode('dark')">
+                                        深色模式
+                                    </div>
+                                    <div class="dropdown-item" :class="{ 'is-active': themeMode === 'system' }"
+                                        @click="handleSelectThemeMode('system')">
+                                        跟随系统
+                                    </div>
+                                </div>
+                            </transition>
+                        </div>
                     </div>
                     <div class="setting-item">
                         <div class="item-meta">
@@ -393,7 +421,7 @@ const setTargetPlayer = async (player: string) => {
     }
 };
 
-// 下拉菜单显隐状态
+// 媒体平台下拉菜单的状态与方法
 const isPlayerDropdownOpen = ref(false);
 const handleSelectPlayer = (player: string) => {
     setTargetPlayer(player);
@@ -413,6 +441,14 @@ const handleSelectStatChart = (type: 'bar' | 'line') => {
     statChartType.value = type;
     isStatChartDropdownOpen.value = false; // 自动收起下拉框
     updateStatsChart(); // 触发图表刷新更新图表类型
+};
+
+// 控制台主题选择下拉菜单状态与方法
+const isThemeModeDropdownOpen = ref(false);
+const handleSelectThemeMode = (mode: string) => {
+    themeMode.value = mode;                 // 更新响应式变量
+    isThemeModeDropdownOpen.value = false;  // 自动收起下拉框
+    handleThemeChange();                    // 复用原有的处理逻辑（保存本地并应用主题）
 };
 
 // 灵动岛设置相关的 UI 状态绑定
