@@ -269,6 +269,50 @@ pub fn run() {
             audio_spectrum::start_monitor();
             system_events::start_monitor(app.handle().clone());
 
+            // 全屏应用检测线程
+            let app_handle_for_fs = app.handle().clone();
+            std::thread::spawn(move || {
+                let mut was_fullscreen = false;
+                loop {
+                    std::thread::sleep(std::time::Duration::from_millis(600));
+                    
+                    #[cfg(target_os = "windows")]
+                    {
+                        unsafe {
+                            let mut is_fullscreen = false;
+                            let fg_hwnd = winapi::um::winuser::GetForegroundWindow();
+                            if !fg_hwnd.is_null() {
+                                let mut rect: winapi::shared::windef::RECT = std::mem::zeroed();
+                                winapi::um::winuser::GetWindowRect(fg_hwnd, &mut rect);
+
+                                let monitor = winapi::um::winuser::MonitorFromWindow(fg_hwnd, winapi::um::winuser::MONITOR_DEFAULTTONEAREST);
+                                let mut mi: winapi::um::winuser::MONITORINFO = std::mem::zeroed();
+                                mi.cbSize = std::mem::size_of::<winapi::um::winuser::MONITORINFO>() as u32;
+                                winapi::um::winuser::GetMonitorInfoW(monitor, &mut mi);
+
+                                // 判断焦点窗口是否填满了当前屏幕
+                                if rect.left == mi.rcMonitor.left && rect.top == mi.rcMonitor.top && rect.right == mi.rcMonitor.right && rect.bottom == mi.rcMonitor.bottom {
+                                    let mut class_name = [0u16; 256];
+                                    let len = winapi::um::winuser::GetClassNameW(fg_hwnd, class_name.as_mut_ptr(), class_name.len() as i32);
+                                    let class_str = String::from_utf16_lossy(&class_name[..len as usize]);
+                                    
+                                    // 排除系统桌面壁纸层
+                                    if class_str != "Progman" && class_str != "WorkerW" {
+                                        is_fullscreen = true;
+                                    }
+                                }
+                            }
+
+                            // 状态发生翻转时，发送信号给前端
+                            if is_fullscreen != was_fullscreen {
+                                let _ = app_handle_for_fs.emit("fullscreen-changed", is_fullscreen);
+                                was_fullscreen = is_fullscreen;
+                            }
+                        }
+                    }
+                }
+            });
+
             let args: Vec<String> = std::env::args().collect();
             let is_autostart = args.iter().any(|arg| arg == "--autostart");
 

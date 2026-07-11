@@ -173,6 +173,11 @@ import { listen, emit } from '@tauri-apps/api/event';
 const isIslandVisible = ref(false);
 const isMenuOpen = ref(false);
 
+// 记录全屏自动隐藏开关状态
+const isAutoHideEnabled = ref(localStorage.getItem('nsd_autohide_fs') === 'true');
+// 记录进入全屏前的灵动岛显隐状态，用来决定退回桌面时要不要恢复
+let wasVisibleBeforeFullscreen = false;
+
 // 记录当前是否显示上行网速（用于轮换）
 const isShowingUpload = ref(false);
 let speedCycleTimer: number | null = null;
@@ -1092,6 +1097,7 @@ onMounted(async () => {
         showToast(event.payload, 'sys');
     });
 
+    // 监听电量显示
     await listen<{ state: 'charging' | 'discharging', percent: number }>('battery-event', (event) => {
         const { state, percent } = event.payload;
 
@@ -1136,6 +1142,39 @@ onMounted(async () => {
 
             // 通知控制台恢复开关状态，让主面板的开关同步变绿（开启）
             await emit('island-status-sync', { visible: true });
+        }
+    });
+
+    // 监听控制台发来的“自动隐藏”配置变更
+    await listen<{ enabled: boolean }>('control-autohide-fs', (event) => {
+        isAutoHideEnabled.value = event.payload.enabled;
+    });
+
+    // 监听 Rust 发来的系统级全屏状态变化
+    await listen<boolean>('fullscreen-changed', async (event) => {
+        const isFullscreen = event.payload;
+
+        // 如果没开这个功能，直接无视
+        if (!isAutoHideEnabled.value) return;
+
+        if (isFullscreen) {
+            // 检测到全屏：如果灵动岛当前是显示的，把它收起来，并做个案底
+            if (isIslandVisible.value) {
+                wasVisibleBeforeFullscreen = true;
+                isIslandVisible.value = false; // 这会自然触发你的弹簧收缩动画并隐藏窗口
+            }
+        } else {
+            // 退出全屏：如果进全屏前它是开着的，现在把它恢复出来
+            if (wasVisibleBeforeFullscreen) {
+                await getCurrentWindow().show();
+
+                // 等待 40ms 让透明窗口先挂载好，再拉开幕布，防止闪烁（复用你之前的完美体验逻辑）
+                setTimeout(() => {
+                    isIslandVisible.value = true;
+                }, 40);
+
+                wasVisibleBeforeFullscreen = false; // 销案
+            }
         }
     });
 

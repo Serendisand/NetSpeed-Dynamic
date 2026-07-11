@@ -333,6 +333,16 @@
                             <span class="slider"></span>
                         </label>
                     </div>
+                    <div class="set-item">
+                        <div class="set-item-meta">
+                            <span class="set-item-title">全屏自动隐藏</span>
+                            <span class="set-item-desc">游戏/视频全屏时自动隐藏岛</span>
+                        </div>
+                        <label class="switch">
+                            <input type="checkbox" v-model="autoHideFullscreen" @change="toggleAutoHide">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
                 </div>
             </template>
 
@@ -456,6 +466,7 @@ const islandTheme = ref(localStorage.getItem('nsd_island_theme') || 'black');
 const enableMusicCtrl = ref(localStorage.getItem('nsd_music_ctrl') === 'true');
 const enableMsgNotify = ref(localStorage.getItem('nsd_msg_notify') === 'true');
 const msgModeEnabled = ref(localStorage.getItem('nsd_msg_mode') === 'true');
+const autoHideFullscreen = ref(localStorage.getItem('nsd_autohide_fs') === 'true');
 
 // 置于任务栏状态，默认从本地存储读取
 const pinToTaskbar = ref(localStorage.getItem('nsd_pin_taskbar') === 'true');
@@ -482,6 +493,12 @@ const toggleMsgNotify = () => {
 // 切换灵动岛设置
 const toggleDynamicSet = () => {
     isDynamicSet.value = !isDynamicSet.value;
+};
+
+// 切换自动隐藏
+const toggleAutoHide = async () => {
+    localStorage.setItem('nsd_autohide_fs', String(autoHideFullscreen.value));
+    await emit('control-autohide-fs', { enabled: autoHideFullscreen.value });
 };
 
 // 切换灵动岛设置时，更新图表
