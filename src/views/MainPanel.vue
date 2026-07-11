@@ -85,7 +85,7 @@
                 </div>
 
                 <div class="card settings-card" v-if="rightPanel === 'settings'">
-                    <h3>常规设置</h3>
+                    <h3>控制台设置</h3>
                     <div class="setting-item flex-row-item">
                         <div class="item-meta">
                             <span class="item-title">主题颜色</span>
@@ -100,7 +100,7 @@
                     <div class="setting-item">
                         <div class="item-meta">
                             <span class="item-title">开机自启动</span>
-                            <span class="item-desc">跟随系统启动 NSD</span>
+                            <span class="item-desc">跟随系统启动并自动隐藏控制台</span>
                         </div>
                         <label class="switch">
                             <input type="checkbox" v-model="autoStart" @change="toggleAutoStart">
@@ -133,26 +133,51 @@
                     <div class="card stats-card">
                         <div class="card-header-row">
                             <h3>数据统计</h3>
-                            <select v-model="statChartType" class="theme-select" @change="updateStatsChart">
-                                <option value="bar">柱状图</option>
-                                <option value="line">折线图</option>
-                            </select>
+
+                            <div class="custom-dropdown" tabindex="0" @blur="isStatChartDropdownOpen = false">
+                                <div class="dropdown-trigger" style="width: 90px;"
+                                    @click="isStatChartDropdownOpen = !isStatChartDropdownOpen">
+                                    <div class="current-item">
+                                        <template v-if="statChartType === 'bar'">柱状图</template>
+                                        <template v-else-if="statChartType === 'line'">折线图</template>
+                                    </div>
+                                    <svg viewBox="0 0 24 24" class="arrow-icon"
+                                        :class="{ 'is-open': isStatChartDropdownOpen }">
+                                        <path d="M7 10l5 5 5-5" fill="none" stroke="currentColor" stroke-width="2"
+                                            stroke-linecap="round" />
+                                    </svg>
+                                </div>
+
+                                <transition name="dropdown">
+                                    <div class="dropdown-menu" v-show="isStatChartDropdownOpen" style="width: 100%;">
+                                        <div class="dropdown-item" :class="{ 'is-active': statChartType === 'bar' }"
+                                            @click="handleSelectStatChart('bar')">
+                                            柱状图
+                                        </div>
+                                        <div class="dropdown-item" :class="{ 'is-active': statChartType === 'line' }"
+                                            @click="handleSelectStatChart('line')">
+                                            折线图
+                                        </div>
+                                    </div>
+                                </transition>
+                            </div>
                         </div>
                         <div class="stats-overview">
                             <div class="stat-box">
                                 <span class="stat-label">总上传</span>
-                                <span class="stat-val">{{ formatBytesValue(totalUpload) }}</span>
-                                <span class="stat-unit">{{ formatBytesUnit(totalUpload) }}</span>
+                                <span class="stat-val">{{ formatBytesValue(totalUpload) }} {{
+                                    formatBytesUnit(totalUpload) }}</span>
+                                <span class="stat-unit"></span>
                             </div>
                             <div class="stat-box">
                                 <span class="stat-label">总下载</span>
-                                <span class="stat-val">{{ formatBytesValue(totalDownload) }}</span>
-                                <span class="stat-unit">{{ formatBytesUnit(totalDownload) }}</span>
+                                <span class="stat-val">{{ formatBytesValue(totalDownload) }} {{
+                                    formatBytesUnit(totalDownload) }}</span>
                             </div>
                             <div class="stat-box">
                                 <span class="stat-label">本月流量</span>
-                                <span class="stat-val">{{ formatBytesValue(monthTraffic) }}</span>
-                                <span class="stat-unit">{{ formatBytesUnit(monthTraffic) }}</span>
+                                <span class="stat-val">{{ formatBytesValue(monthTraffic) }} {{
+                                    formatBytesUnit(monthTraffic) }}</span>
                             </div>
                         </div>
                         <div ref="statsChartRef" class="stats-chart-container"></div>
@@ -382,6 +407,14 @@ const handleSelectTheme = (theme: string) => {
     isThemeDropdownOpen.value = false; // 自动收起下拉菜单
 };
 
+// 数据统计图表类型控制状态与方法
+const isStatChartDropdownOpen = ref(false);
+const handleSelectStatChart = (type: 'bar' | 'line') => {
+    statChartType.value = type;
+    isStatChartDropdownOpen.value = false; // 自动收起下拉框
+    updateStatsChart(); // 触发图表刷新更新图表类型
+};
+
 // 灵动岛设置相关的 UI 状态绑定
 const islandTheme = ref(localStorage.getItem('nsd_island_theme') || 'black');
 const enableMusicCtrl = ref(localStorage.getItem('nsd_music_ctrl') === 'true');
@@ -537,7 +570,7 @@ const updateStatsChart = () => {
     statsChartInstance.setOption({
         tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
         legend: { data: ['上传 (MB)', '下载 (MB)'], textStyle: { color: textColor }, top: 0 },
-        grid: { left: '2%', right: '2%', bottom: '0%', containLabel: true },
+        grid: { top: 30, left: '2%', right: '2%', bottom: '0%', containLabel: true },
         xAxis: {
             type: 'category',
             data: days,
@@ -1000,6 +1033,7 @@ const closeWindow = async () => {
     --modal-h4: #0f172a;
     --modal-p: #64748b;
     --btn-sec-bg: #ebebeb;
+    --btn-sec-list-bg: #ebebeb;
     --btn-sec-color: #64748b;
     --btn-sec-border: #e2e8f0;
     --btn-sec-hover-bg: #e2e8f0;
@@ -1018,7 +1052,7 @@ const closeWindow = async () => {
 
 /*暗色模式变量覆盖*/
 :global(.dark-theme) {
-    --bg-body: #1e2021;
+    --bg-body: #1e1f1f;
     --text-body: #cbd5e1;
     --h1-color: #f8fafc;
     --subtitle-color: #a5aeba;
@@ -1057,6 +1091,7 @@ const closeWindow = async () => {
     --modal-h4: #f8fafc;
     --modal-p: #94a3b8;
     --btn-sec-bg: #1a1a1a;
+    --btn-sec-list-bg: #202020;
     --btn-sec-color: #cbd5e1;
     --btn-sec-border: #475569;
     --btn-sec-hover-bg: #475569;
@@ -1775,7 +1810,7 @@ input:checked+.slider:before {
 .stats-overview {
     display: flex;
     gap: 8px;
-    margin-bottom: 12px;
+    margin-bottom: 8px;
 }
 
 .stat-box {
@@ -1789,8 +1824,7 @@ input:checked+.slider:before {
     align-items: center;
     justify-content: start;
     gap: 4px;
-    height: 70px;
-    /* 固定高度，不会因内容变化而撑高 */
+    height: 65px;
     box-sizing: border-box;
     position: relative;
 }
@@ -1800,7 +1834,7 @@ input:checked+.slider:before {
     color: var(--item-desc-color);
     font-weight: 500;
     flex-shrink: 0;
-    transform: translateY(-5px);
+    transform: translateY(-4px);
 }
 
 .stat-val {
@@ -1809,40 +1843,23 @@ input:checked+.slider:before {
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
     color: var(--speed-value);
     white-space: nowrap;
-    /* 数值不会换行 */
     overflow: hidden;
     text-overflow: ellipsis;
     max-width: 100%;
     flex-shrink: 0;
-    transform: translateY(-5px);
-}
-
-.stat-unit {
-    font-size: 10px;
-    font-weight: 600;
-    color: var(--item-desc-color);
-    opacity: 0.7;
-    flex-shrink: 0;
-    position: absolute;
-    bottom: 3px;
-    background: var(--data-tag-bg);
-    color: var(--data-tag-color);
-    padding: 1px 5px;
-    border-radius: 4px;
+    transform: translateY(-2px);
 }
 
 .stats-chart-container {
     width: 100%;
     flex-grow: 1;
-    min-height: 180px;
+    min-height: 110px;
     border-top: 1px solid var(--chart-border);
-    padding-top: 16px;
+    padding-top: 10px;
 }
 
 
-/* =========================================
-   常规设置 - 标题与开关缝合样式
-   ========================================= */
+/* 常规设置 - 标题与开关缝合样式 */
 
 /* 标题行横向排列，垂直居中 */
 .combo-title-row {
@@ -1932,6 +1949,7 @@ input:disabled+.slider {
     height: 14px;
     object-fit: contain;
     border-radius: 3px;
+    transform: translateY(1px);
 }
 
 .arrow-icon {
@@ -1940,6 +1958,7 @@ input:disabled+.slider {
     color: var(--item-desc-color);
     transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     flex-shrink: 0;
+    transform: translateY(1px);
 }
 
 .arrow-icon.is-open {
@@ -2004,15 +2023,15 @@ input:disabled+.slider {
     object-fit: contain;
     border-radius: 3px;
     opacity: 0.8;
+    transform: translateY(1px);
 }
 
 .dropdown-item:hover {
-    background: var(--btn-sec-bg);
+    background: var(--btn-sec-list-bg);
 }
 
 .dropdown-item.is-active {
-    background: var(--arrow-up-bg);
-    color: var(--arrow-up-color);
+    background: var(--btn-sec-list-bg);
 }
 
 .dropdown-item.is-active .platform-icon {
@@ -2117,6 +2136,7 @@ input:disabled+.slider {
     flex-shrink: 0;
     box-sizing: border-box;
     transition: all 0.2s ease;
+    transform: translateY(1px);
 }
 
 /* 暗色示例方块 */
@@ -2126,7 +2146,7 @@ input:disabled+.slider {
 
 /* 亮色示例方块 */
 .color-preview-icon.theme-white {
-    background-color: #ffffff;
+    background-color: #f5f5f5;
 }
 
 .dropdown-item .color-preview-icon {
