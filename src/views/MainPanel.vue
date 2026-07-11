@@ -1028,7 +1028,7 @@ const toggleWidget = async () => {
 .panel-container {
     background-color: var(--bg-body);
     padding: 28px 32px;
-    max-width: 800px;
+    max-width: 978px;
     margin: 0 auto;
     display: flex;
     flex-direction: column;

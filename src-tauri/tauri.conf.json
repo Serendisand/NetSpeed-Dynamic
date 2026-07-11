@@ -14,8 +14,8 @@
     "windows": [
       {
         "title": "NSD 控制台",
-        "width": 700,
-        "height": 550,
+        "width": 978,
+        "height": 680,
         "resizable": false,
         "center": true,
         "maximized": false,
