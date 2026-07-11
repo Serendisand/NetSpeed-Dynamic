@@ -495,7 +495,8 @@ const getPlayerName = () => {
         'qqmusic': 'QQ音乐',
         'kugou': '酷狗音乐',
         'echo': 'Echo Music',
-        'lx-music': '洛雪音乐'
+        'lx-music': '洛雪音乐',
+        'other': '通用媒体'
     };
     return map[key] || '未知平台';
 };

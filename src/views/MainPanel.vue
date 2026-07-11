@@ -267,6 +267,13 @@
                                             class="platform-icon"> EchoMusic</template>
                                     <template v-else-if="targetPlayer === 'lx-music'"><img src="../assets/lxmusic.png"
                                             class="platform-icon"> 洛雪音乐</template>
+                                    <template v-else-if="targetPlayer === 'other'">
+                                        <svg viewBox="0 0 24 24" class="platform-icon" fill="currentColor">
+                                            <path
+                                                d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z" />
+                                        </svg>
+                                        通用媒体
+                                    </template>
                                 </div>
                                 <svg viewBox="0 0 24 24" class="arrow-icon"
                                     :class="{ 'is-open': isPlayerDropdownOpen }">
@@ -304,6 +311,14 @@
                                     <div class="dropdown-item" :class="{ 'is-active': targetPlayer === 'lx-music' }"
                                         @click="handleSelectPlayer('lx-music')">
                                         <img src="../assets/lxmusic.png" class="platform-icon"> 洛雪音乐
+                                    </div>
+                                    <div class="dropdown-item" :class="{ 'is-active': targetPlayer === 'other' }"
+                                        @click="handleSelectPlayer('other')">
+                                        <svg viewBox="0 0 24 24" class="platform-icon" fill="currentColor">
+                                            <path
+                                                d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z" />
+                                        </svg>
+                                        其他媒体控制
                                     </div>
                                 </div>
                             </transition>

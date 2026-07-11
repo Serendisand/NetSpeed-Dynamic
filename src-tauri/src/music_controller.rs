@@ -40,6 +40,10 @@ fn get_target_media_session() -> Option<GlobalSystemMediaTransportControlsSessio
             if target == "netease" && (app_id_str.contains("cloudmusic") || app_id_str.contains("netease")) {
                 return Some(session);
             } 
+            // 如果是 "other"，直接返回抓取到的第一个有效媒体会话
+            else if target == "other" {
+                return Some(session);
+            }
             // 其他软件直接用名字去系统进程列表里撞
             else if target != "netease" && app_id_str.contains(&target) {
                 return Some(session);
