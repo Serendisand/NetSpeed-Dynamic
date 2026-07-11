@@ -265,6 +265,8 @@
                                             class="platform-icon"> 酷狗</template>
                                     <template v-else-if="targetPlayer === 'echo'"><img src="../assets/echomusic.ico"
                                             class="platform-icon"> EchoMusic</template>
+                                    <template v-else-if="targetPlayer === 'lx-music'"><img src="../assets/lxmusic.png"
+                                            class="platform-icon"> 洛雪音乐</template>
                                 </div>
                                 <svg viewBox="0 0 24 24" class="arrow-icon"
                                     :class="{ 'is-open': isPlayerDropdownOpen }">
@@ -298,6 +300,10 @@
                                     <div class="dropdown-item" :class="{ 'is-active': targetPlayer === 'echo' }"
                                         @click="handleSelectPlayer('echo')">
                                         <img src="../assets/echomusic.ico" class="platform-icon"> EchoMusic
+                                    </div>
+                                    <div class="dropdown-item" :class="{ 'is-active': targetPlayer === 'lx-music' }"
+                                        @click="handleSelectPlayer('lx-music')">
+                                        <img src="../assets/lxmusic.png" class="platform-icon"> 洛雪音乐
                                     </div>
                                 </div>
                             </transition>

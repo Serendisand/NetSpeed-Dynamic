@@ -488,7 +488,15 @@ const showInfo = ref(false);
 // 默认显示内容动态从本地缓存读取
 const getPlayerName = () => {
     const key = localStorage.getItem('nsd_target_player') || 'netease';
-    const map: Record<string, string> = { 'netease': '网易云音乐', 'spotify': 'Spotify', 'apple': 'Apple Music', 'qqmusic': 'QQ音乐', 'kugou': '酷狗音乐', 'echo': 'Echo Music' };
+    const map: Record<string, string> = {
+        'netease': '网易云音乐',
+        'spotify': 'Spotify',
+        'apple': 'Apple Music',
+        'qqmusic': 'QQ音乐',
+        'kugou': '酷狗音乐',
+        'echo': 'Echo Music',
+        'lx-music': '洛雪音乐'
+    };
     return map[key] || '未知平台';
 };
 
