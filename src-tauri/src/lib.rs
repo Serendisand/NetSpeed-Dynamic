@@ -272,6 +272,8 @@ pub fn run() {
             // 全屏应用检测线程
             let app_handle_for_fs = app.handle().clone();
             std::thread::spawn(move || {
+                unsafe { let _ = windows::Win32::System::Com::CoInitializeEx(None, windows::Win32::System::Com::COINIT_MULTITHREADED); }
+                
                 let mut was_fullscreen = false;
                 loop {
                     std::thread::sleep(std::time::Duration::from_millis(600));
