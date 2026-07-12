@@ -368,10 +368,7 @@
             </template>
 
             <template v-else>
-                <div class="blank-dynamic-page">
-                    <h3 style="margin:0 0 8px 0; color: var(--item-title-color);">实时活动设置已预留</h3>
-                    <p style="margin:0; font-size: 13px;">未来可以在这里添加实时活动相关配置...</p>
-                </div>
+                <LiveActive />
             </template>
         </div>
 
@@ -421,6 +418,7 @@ import * as echarts from 'echarts';
 import { enable, disable, isEnabled } from '@tauri-apps/plugin-autostart';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { getCurrentWindow } from '@tauri-apps/api/window';
+import LiveActive from './LiveActive.vue';
 
 const isWidgetVisible = ref(false);
 const autoStart = ref(false);
