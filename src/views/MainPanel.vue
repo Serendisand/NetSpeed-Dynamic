@@ -28,7 +28,7 @@
 
             <div class="header-controls">
                 <button class="dynamicset-btn" :class="{ 'is-active': isDynamicSet }" @click="toggleDynamicSet">
-                    LiveAcitve 设置
+                    个性化中心
                 </button>
                 <span class="control-separator"></span>
 
@@ -368,7 +368,7 @@
             </template>
 
             <template v-else>
-                <LiveActive />
+                <DynamicSet />
             </template>
         </div>
 
@@ -418,7 +418,7 @@ import * as echarts from 'echarts';
 import { enable, disable, isEnabled } from '@tauri-apps/plugin-autostart';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { getCurrentWindow } from '@tauri-apps/api/window';
-import LiveActive from './LiveActive.vue';
+import DynamicSet from '../components/DynamicSet.vue';
 
 const isWidgetVisible = ref(false);
 const autoStart = ref(false);
