@@ -1,5 +1,10 @@
 <template>
     <div class="panel-container">
+        <div v-if="themeMode === 'coverglass'" class="coverglass-bg-container">
+            <div class="coverglass-bg-image" :style="coverUrl ? { backgroundImage: `url(${coverUrl})` } : {}"></div>
+            <div class="coverglass-blur-layer"></div>
+            <div class="coverglass-noise-layer"></div>
+        </div>
         <div class="custom-titlebar">
             <div data-tauri-drag-region class="titlebar-drag-area"></div>
 
@@ -98,6 +103,7 @@
                                 <div class="current-item">
                                     <template v-if="themeMode === 'light'">浅色模式</template>
                                     <template v-else-if="themeMode === 'dark'">深色模式</template>
+                                    <template v-else-if="themeMode === 'coverglass'">沉浸模式</template>
                                     <template v-else-if="themeMode === 'system'">跟随系统</template>
                                 </div>
                                 <svg viewBox="0 0 24 24" class="arrow-icon"
@@ -116,6 +122,10 @@
                                     <div class="dropdown-item" :class="{ 'is-active': themeMode === 'dark' }"
                                         @click="handleSelectThemeMode('dark')">
                                         深色模式
+                                    </div>
+                                    <div class="dropdown-item" :class="{ 'is-active': themeMode === 'coverglass' }"
+                                        @click="handleSelectThemeMode('coverglass')">
+                                        沉浸模式
                                     </div>
                                     <div class="dropdown-item" :class="{ 'is-active': themeMode === 'system' }"
                                         @click="handleSelectThemeMode('system')">
@@ -425,7 +435,12 @@ const autoStart = ref(false);
 const opacity = ref(Number(localStorage.getItem('nsd_island_opacity') || '100'));
 
 const savedTheme = localStorage.getItem('nsd_theme_mode') || 'light';
-const themeMode = ref(['light', 'dark', 'system'].includes(savedTheme) ? savedTheme : 'light');
+const themeMode = ref(['light', 'dark', 'coverglass', 'system'].includes(savedTheme) ? savedTheme : 'light');
+
+const coverUrl = ref('');
+const coverCache = new Map<string, string>();
+const currentTrackInfo = ref('');
+let coverTimer: number | null = null;
 
 const uploadSpeed = ref('0 B/s');
 const downloadSpeed = ref('0 B/s');
@@ -449,6 +464,61 @@ const setTargetPlayer = async (player: string) => {
         console.error('切换平台失败', e);
     }
 };
+
+const syncMusicCover = async () => {
+    // 只有在开启沉浸模式时才请求，节省性能
+    if (themeMode.value !== 'coverglass') return;
+    try {
+        const res = await invoke<[string, string, boolean] | null>('fetch_netease_music_info');
+        if (res) {
+            const [song, artist] = res;
+            const newTrackInfo = artist ? `${song} - ${artist}` : song;
+
+            if (currentTrackInfo.value !== newTrackInfo) {
+                currentTrackInfo.value = newTrackInfo;
+
+                // 优先读取缓存
+                if (coverCache.has(newTrackInfo)) {
+                    coverUrl.value = coverCache.get(newTrackInfo)!;
+                } else {
+                    try {
+                        const realCoverUrl = await invoke<string>('get_random_cover_url', {
+                            songName: song,
+                            artistName: artist
+                        });
+                        coverUrl.value = realCoverUrl;
+                        if (coverCache.size > 50) coverCache.clear();
+                        coverCache.set(newTrackInfo, realCoverUrl);
+                    } catch (coverErr) {
+                        coverUrl.value = '';
+                    }
+                }
+            }
+        } else {
+            // 没检测到播放时清空封面
+            currentTrackInfo.value = '';
+            coverUrl.value = '';
+        }
+    } catch (err) {
+        console.error('沉浸模式封面同步失败:', err);
+    }
+};
+
+// 监听主题变化，动态启停轮询定时器
+watch(themeMode, (newMode) => {
+    if (newMode === 'coverglass') {
+        syncMusicCover(); // 立即获取一次
+        if (!coverTimer) {
+            // 每 2 秒刷新一次，和灵动岛的频率保持一致
+            coverTimer = window.setInterval(syncMusicCover, 2000);
+        }
+    } else {
+        if (coverTimer) {
+            clearInterval(coverTimer);
+            coverTimer = null;
+        }
+    }
+}, { immediate: true });
 
 // 媒体平台下拉菜单的状态与方法
 const isPlayerDropdownOpen = ref(false);
@@ -937,7 +1007,7 @@ const checkUpdate = async () => {
 
 const applyTheme = () => {
     const root = document.documentElement;
-    if (themeMode.value === 'dark') {
+    if (themeMode.value === 'dark' || themeMode.value === 'coverglass') {
         root.classList.add('dark-theme');
     } else if (themeMode.value === 'light') {
         root.classList.remove('dark-theme');
@@ -1046,6 +1116,7 @@ onUnmounted(() => {
     statsChartInstance?.dispose();
     systemThemeMedia?.removeEventListener('change', handleSystemThemeUpdate);
     localStorage.setItem('nsd_traffic_stats', JSON.stringify(trafficData.value));
+    if (coverTimer) clearInterval(coverTimer);
 });
 
 const toggleWidget = async () => {
@@ -1128,12 +1199,12 @@ const closeWindow = async () => {
     --text-body: #cbd5e1;
     --h1-color: #f8fafc;
     --subtitle-color: #a5aeba;
-    --control-bg: #292b2e;
+    --control-bg: #292b2ea9;
     --control-border: #383c41;
     --status-badge-inactive: #64748b;
     --status-badge-active: #f8fafc;
     --divider-border: #334155;
-    --card-bg: #292b2e;
+    --card-bg: #292b2e95;
     --card-border: #383c41;
     --card-shadow: rgba(0, 0, 0, 0.2);
     --card-shadow-hover: rgba(0, 0, 0, 0.3);
@@ -2228,5 +2299,63 @@ input:disabled+.slider {
 .dropdown-item:hover .color-preview-icon,
 .dropdown-item.is-active .color-preview-icon {
     opacity: 1;
+}
+
+/* 沉浸模式 (Coverglass) 专属四层背景 */
+.coverglass-bg-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+    pointer-events: none;
+    /* 绝对不能挡住鼠标点击事件 */
+    overflow: hidden;
+}
+
+/* 放大并半透明的封面层 */
+.coverglass-bg-image {
+    position: fixed;
+    top: -10%;
+    left: -10%;
+    width: 120%;
+    height: 120%;
+    background-size: cover;
+    background-position: center;
+    opacity: 0.3;
+    transition: background-image 0.8s ease;
+}
+
+/* 高斯模糊层 (使用 backdrop-filter 性能最佳) */
+.coverglass-blur-layer {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    backdrop-filter: blur(50px);
+    -webkit-backdrop-filter: blur(50px);
+}
+
+/* SVG 高级细粒度噪点层 (模拟磨砂玻璃的光学漫反射) */
+.coverglass-noise-layer {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0.08;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='256' height='256'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='2.5' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+    background-repeat: repeat;
+    background-size: 150px 150px;
+}
+
+.panel-header,
+.divider,
+.main-content,
+.panel-footer {
+    position: relative;
+    z-index: 1;
 }
 </style>
