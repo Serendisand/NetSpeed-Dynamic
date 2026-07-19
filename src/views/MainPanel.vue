@@ -1200,6 +1200,7 @@ const closeWindow = async () => {
     --speed-value: #0f172a;
     --chart-border: #f1f5f9;
     --item-title-color: #1e293b;
+    --item-title-active-color: #f8fafc8c;
     --tag-dev-bg: #f1f5f9;
     --tag-dev-color: #64748b;
     --item-desc-color: #898f99df;
@@ -1258,6 +1259,7 @@ const closeWindow = async () => {
     --speed-value: #f8fafc;
     --chart-border: #474c53;
     --item-title-color: #f8fafc;
+    --item-title-active-color: #f8fafc8c;
     --tag-dev-bg: #334155;
     --tag-dev-color: #94a3b8;
     --item-desc-color: #898f99df;

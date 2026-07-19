@@ -306,7 +306,7 @@ watch([baseWidth, baseHeight, expandedWidth, borderRadius, isGlowBorderEnabled, 
 }
 
 .shape-toggle button.active {
-    border-color: var(--item-title-color);
+    border-color: var(--item-title-active-color);
     background: var(--btn-pri-bg);
 }
 
@@ -375,7 +375,7 @@ input:checked+.slider:before {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    background: var(--btn-sec-bg);
+    background: var(--select-bg);
     /* 修复 */
     padding: 6px 8px;
     border-radius: 8px;
@@ -472,7 +472,7 @@ input:checked+.slider:before {
 .row-title {
     font-size: 15px;
     font-weight: 500;
-    color: #fff;
+    color: var(--item-title-color);
 }
 
 .row-desc {
@@ -529,7 +529,7 @@ input:checked+.slider:before {
     border-radius: 8px;
     font-size: 14px;
     font-weight: 600;
-    color: #fff;
+    color: var(--item-title-color);
     font-family: ui-monospace, monospace;
 }
 
