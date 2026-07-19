@@ -1475,22 +1475,18 @@ onMounted(async () => {
 
                 // 如果匹配到了新进度的歌词
                 if (matchedIndex > currentMatchedIndex) {
-                    // 如果是首次匹配，或者用户大幅快进导致跨度超过 2 句，直接清空队列，显示最新
-                    if (matchedIndex > currentMatchedIndex) {
-                        // 只有当“不是刚切歌”，且“跨度大于2（用户真实拖拽）”时，才清空跳过
-                        if (currentMatchedIndex !== -1 && matchedIndex - currentMatchedIndex > 2) {
-                            lyricQueue.value = [];
-                            lyricQueue.value.push(parsedLyrics.value[matchedIndex].text);
-                        } else {
-                            // 连续播放，或者刚切歌：把中间的所有歌词老老实实排队
-                            const startIndex = currentMatchedIndex === -1 ? 0 : currentMatchedIndex + 1;
-                            for (let i = startIndex; i <= matchedIndex; i++) {
-                                lyricQueue.value.push(parsedLyrics.value[i].text);
-                            }
-                        }
-                        currentMatchedIndex = matchedIndex;
-                    } else {
-                        // 正常连续播放推进，把期间极快节奏的短歌词全部推入队列排队
+                    // 1. 如果是首次匹配（刚启动/刚解析完歌词）
+                    if (currentMatchedIndex === -1) {
+                        lyricQueue.value = [];
+                        lyricQueue.value.push(parsedLyrics.value[matchedIndex].text);
+                    }
+                    // 2. 或者是用户大幅快进导致跨度超过 2 句
+                    else if (matchedIndex - currentMatchedIndex > 2) {
+                        lyricQueue.value = [];
+                        lyricQueue.value.push(parsedLyrics.value[matchedIndex].text);
+                    }
+                    // 3. 正常连续播放推进，把期间极快节奏的短歌词全部推入队列排队
+                    else {
                         for (let i = currentMatchedIndex + 1; i <= matchedIndex; i++) {
                             lyricQueue.value.push(parsedLyrics.value[i].text);
                         }

@@ -465,6 +465,41 @@ const setTargetPlayer = async (player: string) => {
     }
 };
 
+// 利用 Canvas 一次性生成静态模糊图，彻底拯救 GPU
+const bakeBlurImage = (url: string): Promise<string> => {
+    return new Promise((resolve) => {
+        const img = new Image();
+        // 防止跨域导致 Canvas 污染
+        if (url.startsWith('http')) {
+            img.crossOrigin = 'anonymous';
+        }
+
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            // 降低物理分辨率，进一步榨干性能
+            canvas.width = 120;
+            canvas.height = 120;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) return resolve(url);
+
+            // 在 JS 层面算一次模糊
+            ctx.filter = 'blur(10px)';
+            // 往外围多画一点，裁掉模糊产生的白边
+            ctx.drawImage(img, -10, -10, 140, 140);
+
+            try {
+                // 导出为画质 0.6 的 jpeg，直接变成一张静态死图
+                resolve(canvas.toDataURL('image/jpeg', 0.6));
+            } catch (e) {
+                // 如果遇到 Tauri asset 协议严格跨域，退回原图
+                resolve(url);
+            }
+        };
+        img.onerror = () => resolve(url);
+        img.src = url;
+    });
+};
+
 const syncMusicCover = async () => {
     // 只有在开启沉浸模式时才请求，节省性能
     if (themeMode.value !== 'coverglass') return;
@@ -486,9 +521,15 @@ const syncMusicCover = async () => {
                             songName: song,
                             artistName: artist
                         });
-                        coverUrl.value = realCoverUrl;
+
+                        // 等待 Canvas 烘焙完成，拿到一张纯静态的模糊 Base64 图片
+                        const bakedImage = await bakeBlurImage(realCoverUrl);
+
+                        coverUrl.value = bakedImage;
+
                         if (coverCache.size > 50) coverCache.clear();
-                        coverCache.set(newTrackInfo, realCoverUrl);
+                        // 缓存直接存烤好的静态图，下次切回来连烤都不用烤了
+                        coverCache.set(newTrackInfo, bakedImage);
                     } catch (coverErr) {
                         coverUrl.value = '';
                     }
@@ -2314,28 +2355,23 @@ input:disabled+.slider {
     overflow: hidden;
 }
 
-/* 放大并半透明的封面层 */
+/* 纯净的静态背景图层 */
 .coverglass-bg-image {
     position: fixed;
-    top: -10%;
-    left: -10%;
-    width: 120%;
-    height: 120%;
+    top: -5%;
+    left: -5%;
+    width: 110%;
+    height: 110%;
     background-size: cover;
     background-position: center;
     opacity: 0.3;
     transition: background-image 0.8s ease;
+    transform: translateZ(0);
 }
 
 /* 高斯模糊层 (使用 backdrop-filter 性能最佳) */
 .coverglass-blur-layer {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    backdrop-filter: blur(50px);
-    -webkit-backdrop-filter: blur(50px);
+    display: none;
 }
 
 /* SVG 高级细粒度噪点层 (模拟磨砂玻璃的光学漫反射) */
