@@ -500,7 +500,12 @@ const syncMusicStatus = async () => {
                 // 重置歌词队列与匹配状态
                 lyricQueue.value = [];
                 currentMatchedIndex = -1;
-                lastLyricChangeTime = performance.now();
+
+                // 【核心修复】：将最后一次变动时间推延到“未来”
+                // 相当于给首发的“歌曲名称 - 歌手”加了一把 2000ms 的时间锁
+                // 搭配队列消费者 800ms 的出栈判定，确保歌曲信息至少稳定展示 2.8 秒！
+                // 这 2.8 秒内就算歌词来得再快，也只会全部塞进 lyricQueue 乖乖排队，随后顺滑播放。
+                lastLyricChangeTime = performance.now() + 2000;
 
                 // 换歌时，强制同步一次底层时间（无论底层准不准，这是唯一合法的重置点）
                 localPositionMs.value = positionMs;
