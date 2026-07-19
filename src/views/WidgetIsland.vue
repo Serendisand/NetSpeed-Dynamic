@@ -271,6 +271,14 @@ const islandOpacity = ref(Number(localStorage.getItem('nsd_island_opacity') || '
 // 灵动岛自身主题色
 const islandTheme = ref(localStorage.getItem('nsd_island_theme') || 'black');
 
+// 个性化中心绑定状态
+const nsdBaseWidth = ref(Number(localStorage.getItem('nsd_base_width')) || 150);
+const nsdBaseHeight = ref(Number(localStorage.getItem('nsd_base_height')) || 34);
+const nsdMusicExpandedWidth = ref(Number(localStorage.getItem('nsd_music_expanded_width')) || 320);
+const nsdMsgExpandedWidth = ref(Number(localStorage.getItem('nsd_msg_expanded_width')) || 360);
+const nsdBorderRadius = ref(Number(localStorage.getItem('nsd_border_radius')) || 100);
+const nsdSpringStyle = ref(localStorage.getItem('nsd_spring_style') || 'bouncy');
+
 // 1. 瞬间判定当前是否处于大窗口状态
 const isExpandedSize = computed(() => isMusicExpanded.value || isMsgActive.value);
 
@@ -291,7 +299,7 @@ const islandStyle = computed<CSSProperties>(() => {
         width: '100vw',
         height: '100vh',
         // 只要展开就是 24px，收起就是 100px
-        borderRadius: isExpandedSize.value ? '24px' : '100px',
+        borderRadius: isExpandedSize.value ? '24px' : `${nsdBorderRadius.value}px`,
         position: 'relative',
     };
 });
@@ -301,8 +309,8 @@ const coreContentStyle = computed(() => {
     const linear = islandOpacity.value / 100;
     const alpha = Math.pow(linear, 1 / 2.2);
 
-    // 展开 22px，收起 98px
-    const innerRadius = isExpandedSize.value ? '22px' : '98px';
+    const innerRadiusValue = Math.max(nsdBorderRadius.value - 2, 8);
+    const innerRadius = isExpandedSize.value ? '22px' : `${innerRadiusValue}px`;
 
     if (islandTheme.value === 'white') {
         return {
@@ -396,10 +404,10 @@ const displayMusic = computed(() => !isMsgActive.value && !displaySysToast.value
 
 // 辅助函数：获取当前状态应该拥有的默认大小
 const getBaseSize = () => {
-    // 网速岛尺寸统一缩小为 150x34
-    if (displaySpeed.value) return { w: 150, h: 34 };
-    // 音乐（未展开）等其他状态恢复默认的 260x42
-    return { w: 260, h: 42 };
+    // 网速岛尺寸使用自定义宽高
+    if (displaySpeed.value) return { w: nsdBaseWidth.value, h: nsdBaseHeight.value };
+    // 音乐未展开状态稍微宽一点，高度可微调以适配自定义高度
+    return { w: 260, h: Math.max(nsdBaseHeight.value + 8, 42) };
 };
 
 // 监听内容切换，触发丝滑动画过渡
@@ -937,18 +945,6 @@ const handleRightClick = async (event: MouseEvent) => {
         }
     });
 
-    // 切换流光边框
-    const toggleGlowBorderItem = await MenuItem.new({
-        text: isGlowBorderEnabled.value ? '关闭流光边框' : '开启流光边框',
-        id: 'toggle_glow_border',
-        enabled: true,
-        action: () => {
-            isGlowBorderEnabled.value = !isGlowBorderEnabled.value;
-            localStorage.setItem('nsd_glow_border', String(isGlowBorderEnabled.value));
-            showToast(isGlowBorderEnabled.value ? '已开启流光边框' : '已关闭流光边框');
-        }
-    });
-
     // 重置位置
     const resetPositionItem = await MenuItem.new({
         text: isPinnedToTaskbar.value ? '重置位置 (已锁定)' : '重置位置',
@@ -998,7 +994,6 @@ const handleRightClick = async (event: MouseEvent) => {
     // 3. 创建菜单并按顺序追加进去
     const menu = await Menu.new();
     await menu.append(openSettingsItem);
-    await menu.append(toggleGlowBorderItem);
     await menu.append(resetPositionItem);
     await menu.append(toggleLockItem);
     await menu.append(closeItem);
@@ -1133,14 +1128,13 @@ const expandMusic = (e: MouseEvent) => {
     isPendingCollapse = false;  // 重置待办任务
     isAnimationLocked = true;   // ⚡ 上锁！宣布进入神圣不可侵犯的展开周期
 
-    // 1. 弹性按压动画 (先微微变小)
-    animateIslandSize(245, 38);
+    animateIslandSize(nsdBaseWidth.value + 95, nsdBaseHeight.value + 4);
 
     // 2. 延迟 120 毫秒后，打断缩小，直接猛烈展开
     musicExpandAnimTimer = window.setTimeout(() => {
         isMusicExpanded.value = true;
         isMusicExpanding.value = false;
-        animateIslandSize(320, 115);
+        animateIslandSize(nsdMusicExpandedWidth.value, 115);
 
         // 3. 根据 Rust 端的弹簧衰减频率，约 400ms 后动画彻底结束，此时解锁
         setTimeout(() => {
@@ -1229,6 +1223,24 @@ onMounted(async () => {
             // 👇 关闭时重置状态
             isMediaActive.value = true;
             isNewlyEnabled = false;
+        }
+    });
+
+    // 【新增】监听个性化中心发来的同步指令
+    await listen<any>('sync-dynamic-settings', (event) => {
+        const data = event.payload;
+        nsdBaseWidth.value = Number(data.baseWidth);
+        nsdBaseHeight.value = Number(data.baseHeight);
+        nsdMusicExpandedWidth.value = Number(data.musicExpandedWidth);
+        nsdMsgExpandedWidth.value = Number(data.msgExpandedWidth);
+        nsdBorderRadius.value = Number(data.borderRadius);
+        isGlowBorderEnabled.value = Boolean(data.isGlowBorderEnabled);
+        nsdSpringStyle.value = data.springStyle;
+
+        // 收到设置修改后，如果此时没有展开音乐或显示通知，则立即触发形变更新外观！
+        if (!isMsgActive.value && !displaySysToast.value && !isMusicExpanded.value && !isMusicExpanding.value) {
+            const { w, h } = getBaseSize();
+            animateIslandSize(w, h);
         }
     });
 
@@ -1401,7 +1413,7 @@ onMounted(async () => {
                         isIslandVisible.value = true;
                     }
                     if (!isPinnedToTaskbar.value) {
-                        animateIslandSize(360, 65);
+                        animateIslandSize(nsdMsgExpandedWidth.value, 65);
                     }
                 }
 

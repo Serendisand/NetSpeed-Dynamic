@@ -48,7 +48,7 @@
                         <div class="shape-toggle">
                             <button :class="{ active: borderRadius === 100 }" @click="borderRadius = 100"
                                 title="经典胶囊"></button>
-                            <button :class="{ active: borderRadius === 16 }" @click="borderRadius = 16" title="圆角矩形"
+                            <button :class="{ active: borderRadius === 12 }" @click="borderRadius = 12" title="圆角矩形"
                                 style="border-radius: 6px;"></button>
                         </div>
                     </div>
@@ -109,9 +109,16 @@
                         <span class="row-desc">控制待机时的长度 (默认 150px)</span>
                     </div>
                     <div class="row-action">
-                        <input type="range" min="100" max="300" v-model="baseWidth"
+                        <input type="range" min="140" max="300" v-model.number="baseWidth"
                             class="track-slider highlight-slider" />
                         <div class="value-box">{{ baseWidth }}<span class="unit">px</span></div>
+                        <button class="reset-btn" @click="baseWidth = 150" title="恢复默认">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                                <path d="M3 3v5h5" />
+                            </svg>
+                        </button>
                     </div>
                 </div>
 
@@ -121,21 +128,54 @@
                         <span class="row-desc">影响所有状态下的厚度 (默认 34px)</span>
                     </div>
                     <div class="row-action">
-                        <input type="range" min="24" max="60" v-model="baseHeight"
+                        <input type="range" min="30" max="60" v-model.number="baseHeight"
                             class="track-slider highlight-slider" />
                         <div class="value-box">{{ baseHeight }}<span class="unit">px</span></div>
+                        <button class="reset-btn" @click="baseHeight = 34" title="恢复默认">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                                <path d="M3 3v5h5" />
+                            </svg>
+                        </button>
                     </div>
                 </div>
 
                 <div class="slider-row">
                     <div class="row-info">
-                        <span class="row-title">消息律动展开宽度</span>
-                        <span class="row-desc">音乐播放或长消息的最大边界</span>
+                        <span class="row-title">音乐控制器宽度</span>
+                        <span class="row-desc">点击播放控件展开后的宽度 (默认 320px)</span>
                     </div>
                     <div class="row-action">
-                        <input type="range" min="260" max="600" v-model="expandedWidth"
+                        <input type="range" min="260" max="480" v-model.number="musicExpandedWidth"
                             class="track-slider highlight-slider" />
-                        <div class="value-box">{{ expandedWidth }}<span class="unit">px</span></div>
+                        <div class="value-box">{{ musicExpandedWidth }}<span class="unit">px</span></div>
+                        <button class="reset-btn" @click="musicExpandedWidth = 320" title="恢复默认">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                                <path d="M3 3v5h5" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="slider-row">
+                    <div class="row-info">
+                        <span class="row-title">消息弹窗宽度</span>
+                        <span class="row-desc">收到系统通知时的最大宽度 (默认 360px)</span>
+                    </div>
+                    <div class="row-action">
+                        <input type="range" min="300" max="600" v-model.number="msgExpandedWidth"
+                            class="track-slider highlight-slider" />
+                        <div class="value-box">{{ msgExpandedWidth }}<span class="unit">px</span></div>
+                        <button class="reset-btn" @click="msgExpandedWidth = 360" title="恢复默认">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                                <path d="M3 3v5h5" />
+                            </svg>
+                        </button>
                     </div>
                 </div>
             </div>
@@ -146,31 +186,47 @@
 
 <script setup lang="ts">
 import { ref, watch } from 'vue';
+import { emit } from '@tauri-apps/api/event';
 
-// 尺寸状态
-const baseWidth = ref(150);
-const baseHeight = ref(34);
-const expandedWidth = ref(320);
+// 尺寸状态 (优先读取本地缓存，如果没有则使用默认值)
+const baseWidth = ref(Number(localStorage.getItem('nsd_base_width')) || 150);
+const baseHeight = ref(Number(localStorage.getItem('nsd_base_height')) || 34);
+// 拆分为两个独立的宽度变量
+const musicExpandedWidth = ref(Number(localStorage.getItem('nsd_music_expanded_width')) || 320);
+const msgExpandedWidth = ref(Number(localStorage.getItem('nsd_msg_expanded_width')) || 360);
 
 // 形态与外观
-const borderRadius = ref(100); // 100为胶囊, 16为圆角矩形
-// 直接接管本地缓存
-const isGlowBorderEnabled = ref(localStorage.getItem('nsd_glow_border') === 'true');
+const borderRadius = ref(Number(localStorage.getItem('nsd_border_radius')) || 100);
+const isGlowBorderEnabled = ref(localStorage.getItem('nsd_glow_border') !== 'false'); // 默认开启
 
 // 物理动效
-const springStyle = ref<'stiff' | 'bouncy'>('bouncy');
+const springStyle = ref<'stiff' | 'bouncy'>((localStorage.getItem('nsd_spring_style') as 'stiff' | 'bouncy') || 'bouncy');
 
-// 位置偏移 (桌面端新加需求) 
+// 桌面坐标偏移 (暂不开发，保留结构)
 const offsetX = ref(0);
 const offsetY = ref(10);
 
 // 统一监听更新逻辑入口
-watch([baseWidth, baseHeight, expandedWidth, borderRadius, isGlowBorderEnabled, springStyle, offsetX, offsetY], () => {
-    // 写入本地缓存以便 WidgetIsland 实时感知
+watch([baseWidth, baseHeight, musicExpandedWidth, msgExpandedWidth, borderRadius, isGlowBorderEnabled, springStyle], async () => {
+    // 1. 写入本地缓存
+    localStorage.setItem('nsd_base_width', String(baseWidth.value));
+    localStorage.setItem('nsd_base_height', String(baseHeight.value));
+    localStorage.setItem('nsd_music_expanded_width', String(musicExpandedWidth.value));
+    localStorage.setItem('nsd_msg_expanded_width', String(msgExpandedWidth.value));
+    localStorage.setItem('nsd_border_radius', String(borderRadius.value));
     localStorage.setItem('nsd_glow_border', String(isGlowBorderEnabled.value));
+    localStorage.setItem('nsd_spring_style', springStyle.value);
 
-    // TODO: 预留给 IPC 发送或 Pinia 的状态同步
-    // console.log('UI 配置变更，触发底层渲染...');
+    // 2. 发送 IPC 事件广播
+    await emit('sync-dynamic-settings', {
+        baseWidth: baseWidth.value,
+        baseHeight: baseHeight.value,
+        musicExpandedWidth: musicExpandedWidth.value,
+        msgExpandedWidth: msgExpandedWidth.value,
+        borderRadius: borderRadius.value,
+        isGlowBorderEnabled: isGlowBorderEnabled.value,
+        springStyle: springStyle.value
+    });
 }, { deep: true });
 </script>
 
@@ -537,5 +593,33 @@ input:checked+.slider:before {
     font-size: 10px;
     color: #666;
     margin-left: 2px;
+}
+
+/* 新增：重置按钮样式（完全复刻像素框的外观材质） */
+.reset-btn {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-body, rgba(0, 0, 0, 0.3));
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    color: var(--item-title-color);
+    cursor: pointer;
+    transition: all 0.2s;
+    padding: 0;
+}
+
+/* 悬浮时，跟随系统主按钮的高亮色 */
+.reset-btn:hover {
+    background: var(--btn-pri-bg);
+    color: var(--btn-pri-color);
+}
+
+/* 限制内嵌 SVG 重启图标的大小 */
+.reset-btn svg {
+    width: 14px;
+    height: 14px;
 }
 </style>
