@@ -13,7 +13,7 @@
 [![Vite](https://img.shields.io/badge/Vite-6.x-yellow?logo=vite)](https://vite.dev)
 [![ECharts](https://img.shields.io/badge/ECharts-6.x-purple?logo=apache-echarts)](https://echarts.apache.org)
 
-[![简体中文](https://img.shields.io/badge/简体中文-white)](./README.md) &nbsp; [![English](https://img.shields.io/badge/English-Current-blue)](./README.en.md)
+[简体中文](./README.md) &nbsp; | [English](./README.en.md) &nbsp; | [Download](https://github.com/GEORGEWWWU/NetSpeed-Dynamic/releases/latest) &nbsp; | [Website](https://nsd.georgewu.top/)
 
 </div>
 
