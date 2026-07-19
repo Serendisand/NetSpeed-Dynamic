@@ -2123,7 +2123,7 @@ input:disabled+.slider {
     display: flex;
     flex-direction: column;
     gap: 2px;
-    max-height: 130px;
+    max-height: 110px;
     overflow-y: auto;
 }
 
