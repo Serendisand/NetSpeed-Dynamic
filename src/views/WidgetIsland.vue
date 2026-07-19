@@ -362,7 +362,10 @@ const parseLrc = (lrcStr: string) => {
             const time = min * 60000 + sec * 1000 + ms;
             const text = line.replace(timeReg, '').trim();
 
-            if (text && !text.includes('纯音乐') && text !== 'lrc' && text !== '//') {
+            // 过滤掉只有全角空格、零宽字符的“幽灵歌词”
+            const realText = text.replace(/[\s\u200B-\u200D\uFEFF\u3000]/g, '');
+
+            if (realText.length > 0 && !text.includes('纯音乐') && text !== 'lrc' && text !== '//') {
                 result.push({ time, text });
             }
         }
@@ -494,7 +497,7 @@ const syncMusicStatus = async () => {
             // 核心 1：是否是新切的歌？
             if (currentBaseInfo.value !== newTrackInfo) {
                 currentBaseInfo.value = newTrackInfo;
-                currentTrackInfo.value = newTrackInfo;
+                setSafeTrackInfo(newTrackInfo);
                 parsedLyrics.value = [];
 
                 // 重置歌词队列与匹配状态
@@ -537,10 +540,10 @@ const syncMusicStatus = async () => {
             isPlaying.value = playing;
 
             if (parsedLyrics.value.length === 0 && currentTrackInfo.value !== currentBaseInfo.value) {
-                currentTrackInfo.value = currentBaseInfo.value;
+                setSafeTrackInfo(currentBaseInfo.value);
             }
         } else {
-            currentTrackInfo.value = `未在播放歌曲 - ${getPlayerName()}`;
+            setSafeTrackInfo(`未在播放歌曲 - ${getPlayerName()}`);
             isPlaying.value = false;
             coverUrl.value = '';
 
@@ -586,6 +589,45 @@ const currentSongName = ref('未在播放歌曲');
 const currentArtistName = ref(getPlayerName());
 const currentTrackInfo = ref(`未在播放歌曲 - ${getPlayerName()}`);
 
+// 强制视觉渲染队列（绝对防闪烁/防空壳）
+const renderQueue: string[] = [];
+let isRendering = false;
+
+const setSafeTrackInfo = (text: string) => {
+    // 1. 终极过滤：剔除所有空白、零宽字符
+    if (!text || text.replace(/[\s\u200B-\u200D\uFEFF\u3000]/g, '').length === 0) return;
+
+    // 2. 防重判定：如果和当前屏幕上的一样，或者和队列排在最后的一样，拒收
+    if (text === currentTrackInfo.value && renderQueue.length === 0) return;
+    if (renderQueue.length > 0 && renderQueue[renderQueue.length - 1] === text) return;
+
+    // 3. 扔进强制渲染队列，绝不使用 clearTimeout 取消任何一句话！
+    renderQueue.push(text);
+    drainRenderQueue();
+};
+
+const drainRenderQueue = () => {
+    // 如果正在播动画，或者队列空了，直接挂机
+    if (isRendering || renderQueue.length === 0) return;
+
+    const nextText = renderQueue.shift();
+    if (!nextText || nextText === currentTrackInfo.value) {
+        drainRenderQueue(); // 跳过重复，继续查下一个
+        return;
+    }
+
+    // 上锁！开始渲染新文字
+    isRendering = true;
+    currentTrackInfo.value = nextText;
+
+    // 4. 动画护城河：强制锁死 350ms！
+    // 必须等 Vue 的 out-in 动画完美落幕，才允许渲染下一句！
+    setTimeout(() => {
+        isRendering = false;
+        drainRenderQueue();
+    }, 350);
+};
+
 // 音乐滚动相关变量
 const maskBoxRef = ref<HTMLElement | null>(null);
 const textInnerRef = ref<HTMLElement | null>(null);
@@ -602,13 +644,18 @@ const calculateScroll = () => {
         return;
     }
 
-    // 核心修复 1：使用 getBoundingClientRect() 获取无视父级限制的真实渲染宽度
     const textWidth = textInnerRef.value.getBoundingClientRect().width;
     const containerWidth = maskBoxRef.value.clientWidth;
 
-    if (textWidth > containerWidth) {
-        // 核心修复 1：使用 Math.ceil() 强制取整，绝对不允许出现小数像素！
-        scrollDist.value = Math.ceil(textWidth - containerWidth + 20);
+    // 关键修正：因为 CSS mask 从 75% 处开始渐变遮挡
+    // 我们必须以这 75% 的“绝对清晰安全区”作为计算基准
+    const safeWidth = containerWidth * 0.75;
+
+    // 只要文字超过了安全区，哪怕还没超出整个物理盒子，也必须开始滚动！
+    if (textWidth > safeWidth) {
+        // 计算滚动距离：把文字的末尾准确无误地拖进安全区，外加 5px 的微小呼吸空间
+        // 这样既不会挡住结尾，也不会像之前那样盲目多滚几十个像素
+        scrollDist.value = Math.ceil(textWidth - safeWidth + 5);
 
         // 按照 30px/s 的速度阅读，计算纯移动时间
         const timeToMove = scrollDist.value / 30;
@@ -1430,9 +1477,19 @@ onMounted(async () => {
                 // 如果匹配到了新进度的歌词
                 if (matchedIndex > currentMatchedIndex) {
                     // 如果是首次匹配，或者用户大幅快进导致跨度超过 2 句，直接清空队列，显示最新
-                    if (currentMatchedIndex === -1 || matchedIndex - currentMatchedIndex > 2) {
-                        lyricQueue.value = [];
-                        lyricQueue.value.push(parsedLyrics.value[matchedIndex].text);
+                    if (matchedIndex > currentMatchedIndex) {
+                        // 只有当“不是刚切歌”，且“跨度大于2（用户真实拖拽）”时，才清空跳过
+                        if (currentMatchedIndex !== -1 && matchedIndex - currentMatchedIndex > 2) {
+                            lyricQueue.value = [];
+                            lyricQueue.value.push(parsedLyrics.value[matchedIndex].text);
+                        } else {
+                            // 连续播放，或者刚切歌：把中间的所有歌词老老实实排队
+                            const startIndex = currentMatchedIndex === -1 ? 0 : currentMatchedIndex + 1;
+                            for (let i = startIndex; i <= matchedIndex; i++) {
+                                lyricQueue.value.push(parsedLyrics.value[i].text);
+                            }
+                        }
+                        currentMatchedIndex = matchedIndex;
                     } else {
                         // 正常连续播放推进，把期间极快节奏的短歌词全部推入队列排队
                         for (let i = currentMatchedIndex + 1; i <= matchedIndex; i++) {
@@ -1454,7 +1511,7 @@ onMounted(async () => {
                     if (now - lastLyricChangeTime >= 800) {
                         const nextLyric = lyricQueue.value.shift();
                         if (nextLyric && nextLyric !== currentTrackInfo.value) {
-                            currentTrackInfo.value = nextLyric;
+                            setSafeTrackInfo(nextLyric);
                             lastLyricChangeTime = now;
                         }
                     }
