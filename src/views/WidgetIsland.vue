@@ -191,6 +191,11 @@ const msgAppName = ref('');
 const msgBody = ref('');
 const msgAumid = ref('');
 
+// 跟踪底层是否有真实的媒体活动
+const isMediaActive = ref(true); // 默认 true，交给首次轮询决定去留
+let isFirstMediaCheck = true;    // 标记首次检查，防止开机启动时乱弹窗
+let isNewlyEnabled = false;
+
 // 系统操作通知专用变量
 const displaySysToast = ref(false);
 const sysToastText = ref('');
@@ -347,8 +352,8 @@ const isPositionLocked = ref(localStorage.getItem('nsd_position_locked') === 'tr
 const isMsgModeEnabled = ref(localStorage.getItem('nsd_msg_mode') === 'true');
 
 // 使用计算属性智能判断当前该显示谁
-const displaySpeed = computed(() => !isMsgActive.value && !displaySysToast.value && !isMusicCtlEnabled.value);
-const displayMusic = computed(() => !isMsgActive.value && !displaySysToast.value && isMusicCtlEnabled.value);
+const displaySpeed = computed(() => !isMsgActive.value && !displaySysToast.value && (!isMusicCtlEnabled.value || !isMediaActive.value));
+const displayMusic = computed(() => !isMsgActive.value && !displaySysToast.value && isMusicCtlEnabled.value && isMediaActive.value);
 
 // 辅助函数：获取当前状态应该拥有的默认大小
 const getBaseSize = () => {
@@ -369,7 +374,7 @@ watch([displaySpeed, displayMusic], () => {
 
 // 专门用于控制右侧常驻指示灯的独立计算属性（完全不受消息通知打断）
 const showSpectrumIndicator = computed(() => {
-    return isMusicCtlEnabled.value;
+    return isMusicCtlEnabled.value && isMediaActive.value;
 });
 
 // 计算并吸附到左下角的方法
@@ -432,26 +437,27 @@ const nextTrack = async () => {
     await invoke('control_system_media', { action: 'next' });
 };
 
-// 核心同步函数：塞入到你的 fetchSpeedStats 同一频次的定时器中
+// 核心同步函数：负责获取状态并智能降级
 const syncMusicStatus = async () => {
     try {
-        // 1. 调用 Rust 提取网易云标题 [歌名, 歌手, 是否在播放]
         const res = await invoke<[string, string, boolean] | null>('fetch_netease_music_info');
 
         if (res) {
             const [song, artist, playing] = res;
 
-            // 新增这两行为了展开后的双行显示分别赋值
+            // 发现媒体活跃：重置所有标记
+            if (!isMediaActive.value) isMediaActive.value = true;
+            isFirstMediaCheck = false;
+            isNewlyEnabled = false; // 检测到有声音，直接销毁“刚开启”的标记
+
             currentSongName.value = song;
             currentArtistName.value = artist || '未知歌手';
 
-            // 拼接新的歌曲信息
             const newTrackInfo = artist ? `${song} - ${artist}` : song;
 
             if (currentTrackInfo.value !== newTrackInfo) {
                 currentTrackInfo.value = newTrackInfo;
 
-                // 优先读取缓存
                 if (coverCache.has(newTrackInfo)) {
                     coverUrl.value = coverCache.get(newTrackInfo)!;
                 } else {
@@ -461,23 +467,33 @@ const syncMusicStatus = async () => {
                             artistName: artist
                         });
                         coverUrl.value = realCoverUrl;
-                        // 写入缓存，最多缓存 50 首防止内存溢出
                         if (coverCache.size > 50) coverCache.clear();
                         coverCache.set(newTrackInfo, realCoverUrl);
                     } catch (coverErr) {
-                        console.error('所有封面源均获取失败:', coverErr);
-                        // 使用本地图标或纯色背景，不要再用外部 URL 作为错误兜底
                         coverUrl.value = '';
                     }
                 }
             }
-
             isPlaying.value = playing;
         } else {
-            // 没检测到播放时，清空状态
+            // 没检测到播放时清空状态
             currentTrackInfo.value = `未在播放歌曲 - ${getPlayerName()}`;
             isPlaying.value = false;
-            coverUrl.value = ''; // 没歌时清空，显示默认的优美渐变色
+            coverUrl.value = '';
+
+            // 触发自动降级
+            if (isMediaActive.value) {
+                isMediaActive.value = false; // 隐藏媒体岛，切回网速岛
+
+                // 👇 根据状态给予不同的精准反馈
+                if (isNewlyEnabled) {
+                    showToast('已开启媒体控制，暂无音频播放', 'sys');
+                    isNewlyEnabled = false; // 消费掉这个标记
+                } else if (!isFirstMediaCheck && isMusicCtlEnabled.value) {
+                    showToast('无媒体活动，已切换为网速显示', 'sys');
+                }
+            }
+            isFirstMediaCheck = false;
         }
     } catch (err) {
         console.error('音乐信息获取失败:', err);
@@ -1092,12 +1108,20 @@ onMounted(async () => {
         if (isEnabled) {
             // 判断是不是“首次”（本地有没有存过流光边框的数据）
             if (localStorage.getItem('nsd_glow_border') === null) {
-                isGlowBorderEnabled.value = true; // 自动开启流光边框
-                localStorage.setItem('nsd_glow_border', 'true'); // 存入记忆，以后就不算“首次”了
+                isGlowBorderEnabled.value = true;
+                localStorage.setItem('nsd_glow_border', 'true');
             }
+
+            // 👇 核心修改：强制展示音乐岛，并打上“刚开启”的标记
+            isMediaActive.value = true;
+            isNewlyEnabled = true;
 
             showInfo.value = false;
             musicBoxKey.value++;
+        } else {
+            // 👇 关闭时重置状态
+            isMediaActive.value = true;
+            isNewlyEnabled = false;
         }
     });
 
