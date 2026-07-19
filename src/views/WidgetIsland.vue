@@ -97,11 +97,10 @@
                                     </div>
                                 </div>
                                 <div class="music-info-mask-box" ref="maskBoxRef">
-                                    <div class="music-info-text single-line" :class="{ 'fade-out': isMusicExpanded }">
-                                        <transition name="lyric-fade" mode="out-in">
-                                            <span class="scroll-inner" ref="textInnerRef" :key="currentTrackInfo"
-                                                :class="{ 'is-scrolling': scrollDist > 0 }"
-                                                :style="scrollDist > 0 ? { '--scroll-dist': scrollDist + 'px', '--scroll-duration': scrollDuration } : {}">
+                                    <div class="music-info-text single-line" :class="{ 'fade-out': isMusicExpanded }"
+                                        style="position: relative; width: 100%; height: 100%;">
+                                        <transition name="lyric-fade">
+                                            <span class="lyric-render-text" :key="currentTrackInfo">
                                                 {{ currentTrackInfo }}
                                             </span>
                                         </transition>
@@ -530,10 +529,10 @@ const syncMusicStatus = async () => {
                     }).catch(() => { console.log('未找到歌词'); });
             } else {
                 // 核心 2：是同一首歌，正在播放中！
-                // 只有到底层传来的时间大于 0，且和前端差距超过 2000ms（用户真拖拽了进度条）时，才允许校准！
-                // 彻底屏蔽底层疯狂发 0 导致的鬼畜回弹！
-                if (positionMs > 1000 && Math.abs(positionMs - localPositionMs.value) > 2000) {
-                    localPositionMs.value = positionMs;
+                // 缩紧容错率：只要误差超过 800ms 就立刻强制同步。
+                // 减去 250ms 的音频缓冲偏移量，让视觉歌词稍微提前，匹配人类的反应时间
+                if (positionMs > 1000 && Math.abs(positionMs - localPositionMs.value) > 800) {
+                    localPositionMs.value = positionMs - 250;
                 }
             }
 
@@ -1466,8 +1465,8 @@ onMounted(async () => {
 
                 // 找出当前时间进度应该播放哪一句
                 for (let i = 0; i < parsedLyrics.value.length; i++) {
-                    // 提前 250ms 触发，完美抵消前端叠化动画产生的视觉延迟
-                    if (parsedLyrics.value[i].time <= localPositionMs.value + 250) {
+                    // 抢跑 550ms：完美抵消 150ms 叠化动画 + 100ms 滤镜模糊 + 听觉视觉生理时差
+                    if (parsedLyrics.value[i].time <= localPositionMs.value + 550) {
                         matchedIndex = i;
                     } else {
                         break;
@@ -2288,16 +2287,46 @@ onUnmounted(() => {
     transform: translateX(-2px) translateY(-1px);
 }
 
-/* 歌词叠化淡入淡出动画 */
-.lyric-fade-enter-active,
-.lyric-fade-leave-active {
-    transition: opacity 0.15s ease, filter 0.15s ease;
+/* 歌词渲染单句定位 */
+.lyric-render-text {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    /* 严格垂直居中 */
+    white-space: nowrap;
+    overflow: hidden;
+    text-align: left !important;
+    display: inline-block;
+    will-change: opacity, filter;
 }
 
-.lyric-fade-enter-from,
+.lyric-fade-enter-active,
+.lyric-fade-leave-active {
+    /* 180ms 顺滑交替，既有原先的质感，又不会因为时间太长导致空壳 */
+    transition: opacity 0.2s ease, filter 0.22s ease;
+}
+
+/* 新歌词进来：从透明、模糊，逐渐变得清晰可见 */
+.lyric-fade-enter-from {
+    opacity: 0;
+    filter: blur(8px);
+}
+
+.lyric-fade-enter-to {
+    opacity: 1;
+    filter: blur(0px);
+}
+
+/* 旧歌词离开：在原地直接开始变模糊、变透明，直到被新歌词完全平滑盖过去 */
+.lyric-fade-leave-from {
+    opacity: 1;
+    filter: blur(0px);
+}
+
 .lyric-fade-leave-to {
     opacity: 0;
-    filter: blur(5px);
-    /* 加一点微微的高斯模糊，让文字切换更有电影感 */
+    filter: blur(8px);
 }
 </style>

@@ -264,39 +264,59 @@ pub async fn get_random_cover_url(song_name: String, artist_name: String) -> Res
 #[command]
 pub async fn fetch_netease_lyrics(song_name: String, artist_name: String, duration_ms: i64) -> Result<String, String> {
     let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(3))
+        .timeout(std::time::Duration::from_secs(4))
         .build()
         .map_err(|e| e.to_string())?;
 
+    // --- ENGINE 1: LRCLIB (The Gold Standard for Time-Synced Exact Matches) ---
+    // LRCLIB expects duration in seconds
+    let duration_sec = duration_ms / 1000;
+    
+    // Attempt exact match first if we have a valid duration
+    if duration_sec > 0 {
+        let lrclib_url = format!(
+            "https://lrclib.net/api/get?track_name={}&artist_name={}&duration={}",
+            urlencoding::encode(&song_name),
+            urlencoding::encode(&artist_name),
+            duration_sec
+        );
+
+        if let Ok(resp) = client.get(&lrclib_url).send().await {
+            if let Ok(json) = resp.json::<serde_json::Value>().await {
+                // Prefer synced lyrics over plain text
+                if let Some(synced_lyrics) = json.pointer("/syncedLyrics").and_then(|v| v.as_str()) {
+                    if !synced_lyrics.is_empty() {
+                        return Ok(synced_lyrics.to_string());
+                    }
+                }
+            }
+        }
+    }
+
+    // --- ENGINE 2: NETEASE FALLBACK (Your original logic, slightly optimized) ---
     let ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36";
     let query = format!("{} {}", song_name, artist_name);
 
-    // 1. 搜索获取歌曲列表（将 limit 扩大到 8，提供充足的对比样本）
-    let search_resp = client.post("https://music.163.com/api/search/get/web")
+    if let Ok(resp) = client.post("https://music.163.com/api/search/get/web")
         .header("Referer", "https://music.163.com")
         .header("User-Agent", ua)
         .form(&[("s", query.as_str()), ("type", "1"), ("limit", "8"), ("offset", "0")])
-        .send().await;
-
-    if let Ok(resp) = search_resp {
+        .send().await 
+    {
         if let Ok(json) = resp.json::<serde_json::Value>().await {
-            // 2. 核心比对算法：遍历搜索结果，找到时长最接近当前播放的那个版本
             if let Some(songs) = json.pointer("/result/songs").and_then(|v| v.as_array()) {
                 let mut best_song_id = None;
                 let mut min_diff = i64::MAX;
 
                 for song in songs {
-                    // 兼容网易云不同接口风格的 duration 或 dt 字段
                     let song_duration = song.get("duration").or(song.get("dt")).and_then(|v| v.as_i64());
                     let id = song.get("id").and_then(|v| v.as_i64());
 
                     if let (Some(id), Some(song_dur)) = (id, song_duration) {
-                        // 如果底层没有传上来有效时长，退化为原版的盲选逻辑
                         if duration_ms <= 0 {
                             best_song_id = Some(id);
                             break;
                         }
-
                         let diff = (song_dur - duration_ms).abs();
                         if diff < min_diff {
                             min_diff = diff;
@@ -305,7 +325,6 @@ pub async fn fetch_netease_lyrics(song_name: String, artist_name: String, durati
                     }
                 }
 
-                // 3. 使用找出的精准 ID 获取歌词
                 if let Some(song_id) = best_song_id {
                     let lyric_url = format!("https://music.163.com/api/song/lyric?id={}&lv=-1&kv=-1&tv=-1", song_id);
                     if let Ok(lyric_resp) = client.get(&lyric_url).header("User-Agent", ua).send().await {
