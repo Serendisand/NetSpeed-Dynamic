@@ -1221,7 +1221,7 @@ const closeWindow = async () => {
     --btn-sec-color: #64748b;
     --btn-sec-border: #e2e8f0;
     --btn-sec-hover-bg: #e2e8f0;
-    --btn-sec-hover-color: #334155;
+    --btn-sec-hover-color: #ffffff;
     --btn-pri-bg: #2b2b2b;
     --btn-pri-color: #ffffff;
     --btn-pri-border: #2b2b2b;
