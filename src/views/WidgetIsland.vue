@@ -170,6 +170,7 @@ import { ref, onMounted, onUnmounted, computed, watch, nextTick, type CSSPropert
 import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWindow, currentMonitor, PhysicalPosition, LogicalPosition, PhysicalSize } from '@tauri-apps/api/window'; import { Menu, MenuItem } from '@tauri-apps/api/menu';
 import { listen, emit } from '@tauri-apps/api/event';
+import { t, currentLanguage, type AppLanguage } from '../i18n';
 
 const isIslandVisible = ref(false);
 const isMenuOpen = ref(false);
@@ -499,7 +500,7 @@ const syncMusicStatus = async () => {
             isNewlyEnabled = false;
 
             currentSongName.value = song;
-            currentArtistName.value = artist || '未知歌手';
+            currentArtistName.value = artist || t('unknownArtist');
 
             const newTrackInfo = artist ? `${song} - ${artist}` : song;
 
@@ -552,7 +553,7 @@ const syncMusicStatus = async () => {
                 setSafeTrackInfo(currentBaseInfo.value);
             }
         } else {
-            setSafeTrackInfo(`未在播放歌曲 - ${getPlayerName()}`);
+            setSafeTrackInfo(`${t('noSongPlaying')} - ${getPlayerName()}`);
             isPlaying.value = false;
             coverUrl.value = '';
 
@@ -578,25 +579,33 @@ const showInfo = ref(false);
 const getPlayerName = () => {
     const key = localStorage.getItem('nsd_target_player') || 'netease';
     const map: Record<string, string> = {
-        'netease': '网易云音乐',
+        'netease': t('neteaseMusic'),
         'spotify': 'Spotify',
         'apple': 'Apple Music',
-        'qqmusic': 'QQ音乐',
-        'kugou': '酷狗音乐',
+        'qqmusic': t('qqMusicFull'),
+        'kugou': t('kugouMusicFull'),
         'echo': 'Echo Music',
-        'lx-music': '洛雪音乐',
-        'other': '通用媒体'
+        'lx-music': t('lxMusicFull'),
+        'other': t('genericMediaFull')
     };
-    return map[key] || '未知平台';
+    return map[key] || t('unknownPlatform');
 };
 
 // 定义一个用于强制刷新的 key
 const musicBoxKey = ref(0);
 
 // 定义双行文本所需的单独变量
-const currentSongName = ref('未在播放歌曲');
+const currentSongName = ref(t('noSongPlaying'));
 const currentArtistName = ref(getPlayerName());
-const currentTrackInfo = ref(`未在播放歌曲 - ${getPlayerName()}`);
+const currentTrackInfo = ref(`${t('noSongPlaying')} - ${getPlayerName()}`);
+
+watch(currentLanguage, () => {
+    if (!displayMusic.value || currentSongName.value === t('noSongPlaying')) {
+        currentSongName.value = t('noSongPlaying');
+        currentArtistName.value = getPlayerName();
+        currentTrackInfo.value = `${t('noSongPlaying')} - ${getPlayerName()}`;
+    }
+});
 
 // 强制视觉渲染队列（绝对防闪烁/防空壳）
 const renderQueue: string[] = [];
@@ -777,9 +786,9 @@ watch(networkStatus, (newStatus, oldStatus) => {
     // 忽略初始化时的变化，确保是真的状态翻转
     if (oldStatus && oldStatus !== newStatus) {
         if (newStatus === 'error') {
-            showToast('网络连接已断开', 'sys');
+            showToast(t('networkDisconnected'), 'sys');
         } else if (newStatus === 'good' && oldStatus === 'error') {
-            showToast('网络已恢复连接', 'sys');
+            showToast(t('networkRestored'), 'sys');
         }
     }
 });
@@ -939,23 +948,35 @@ const handleRightClick = async (event: MouseEvent) => {
 
     // 打开控制台
     const openSettingsItem = await MenuItem.new({
-        text: '打开控制台',
+        text: t('openConsole'),
         id: 'open_settings',
         action: async () => {
             await emit('open-settings-panel');
-            showToast('已打开控制台');
+            showToast(t('consoleOpened'));
+        }
+    });
+
+    // 切换流光边框
+    const toggleGlowBorderItem = await MenuItem.new({
+        text: isGlowBorderEnabled.value ? t('disableGlowBorder') : t('enableGlowBorder'),
+        id: 'toggle_glow_border',
+        enabled: true,
+        action: () => {
+            isGlowBorderEnabled.value = !isGlowBorderEnabled.value;
+            localStorage.setItem('nsd_glow_border', String(isGlowBorderEnabled.value));
+            showToast(isGlowBorderEnabled.value ? t('glowBorderEnabled') : t('glowBorderDisabled'));
         }
     });
 
     // 重置位置
     const resetPositionItem = await MenuItem.new({
-        text: isPinnedToTaskbar.value ? '重置位置 (已锁定)' : '重置位置',
+        text: isPinnedToTaskbar.value ? t('resetPositionLocked') : t('resetPosition'),
         id: 'reset_position',
         enabled: !isPinnedToTaskbar.value,
         action: async () => {
             try {
                 await adjustWindowPosition();
-                showToast('已重置位置');
+                showToast(t('positionReset'));
             } catch (error) {
                 console.error(error);
             }
@@ -964,7 +985,7 @@ const handleRightClick = async (event: MouseEvent) => {
 
     // 锁定位置菜单项
     const toggleLockItem = await MenuItem.new({
-        text: isPositionLocked.value ? '解锁 (当前已锁定)' : '锁定',
+        text: isPositionLocked.value ? t('unlockCurrentLocked') : t('lock'),
         id: 'toggle_lock',
         enabled: !isPinnedToTaskbar.value,
         action: () => {
@@ -972,7 +993,7 @@ const handleRightClick = async (event: MouseEvent) => {
             localStorage.setItem('nsd_position_locked', String(isPositionLocked.value));
             // 修改这里：根据状态触发 lock 或 unlock 专属通知
             showToast(
-                isPositionLocked.value ? '锁定位置成功' : '位置已解锁',
+                isPositionLocked.value ? t('positionLocked') : t('positionUnlocked'),
                 isPositionLocked.value ? 'lock' : 'unlock'
             );
         }
@@ -980,7 +1001,7 @@ const handleRightClick = async (event: MouseEvent) => {
 
     // 关闭灵动岛
     const closeItem = await MenuItem.new({
-        text: '关闭',
+        text: t('close'),
         id: 'close',
         action: () => {
             isIslandVisible.value = false;
@@ -996,6 +1017,7 @@ const handleRightClick = async (event: MouseEvent) => {
     // 3. 创建菜单并按顺序追加进去
     const menu = await Menu.new();
     await menu.append(openSettingsItem);
+    await menu.append(toggleGlowBorderItem);
     await menu.append(resetPositionItem);
     await menu.append(toggleLockItem);
     await menu.append(closeItem);
@@ -1259,7 +1281,14 @@ onMounted(async () => {
 
     // 监听系统底层事件（音量、电源）
     await listen<string>('system-event', (event) => {
-        showToast(event.payload, 'sys');
+        let text = event.payload;
+        const volumeMatch = text.match(/当前系统音量 (\d+)%/);
+        if (volumeMatch) {
+            text = t('systemVolume', { volume: volumeMatch[1] });
+        } else if (text === '正在使用电池供电') {
+            text = t('batteryPowered');
+        }
+        showToast(text, 'sys');
     });
 
     // 监听电量显示
@@ -1267,10 +1296,10 @@ onMounted(async () => {
         const { state, percent } = event.payload;
 
         if (state === 'charging') {
-            showToast(`已接入电源，当前电量 ${percent}%`, 'battery-charge');
+            showToast(t('powerPlugged', { percent }), 'battery-charge');
         } else if (state === 'discharging' && percent <= 20) {
             // 这里还可以加入防抖：只在刚掉到 20%、10%、5% 等关键节点触发一次，避免疯狂弹窗
-            showToast(`电池电量低，剩余 ${percent}%`, 'battery-low');
+            showToast(t('batteryLow', { percent }), 'battery-low');
         }
     });
 
@@ -1308,6 +1337,10 @@ onMounted(async () => {
             // 通知控制台恢复开关状态，让主面板的开关同步变绿（开启）
             await emit('island-status-sync', { visible: true });
         }
+    });
+
+    await listen<{ language: AppLanguage }>('control-language', (event) => {
+        currentLanguage.value = event.payload.language;
     });
 
     // 监听控制台发来的“自动隐藏”配置变更
@@ -1409,11 +1442,11 @@ onMounted(async () => {
                 msgAumid.value = res.aumid;
 
                 // 标题只存发送者（如果没有单独标题就显示 '新通知'）
-                msgTitle.value = (res.title && res.title !== res.app_name) ? res.title : '新通知';
+                msgTitle.value = (res.title && res.title !== res.app_name) ? res.title : t('newNotification');
                 // 单独把程序名存起来
                 msgAppName.value = res.app_name;
                 // 内容兜底逻辑保持不变
-                msgBody.value = res.body || (res.title === res.app_name ? '收到一条新通知' : res.title);
+                msgBody.value = res.body || (res.title === res.app_name ? t('receivedNotification') : res.title);
 
                 currentMsgIcon.value = getAppIcon(res.app_name);
 

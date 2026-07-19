@@ -27,18 +27,18 @@
                 <img src="../assets/logo.png" class="logo-icon">
                 <div>
                     <h1>NetSpeed Dynamic Pro</h1>
-                    <p class="subtitle">NSD 桌面灵动岛组件 v{{ appVersion }}</p>
+                    <p class="subtitle">{{ t('appSubtitle') }} v{{ appVersion }}</p>
                 </div>
             </div>
 
             <div class="header-controls">
                 <button class="dynamicset-btn" :class="{ 'is-active': isDynamicSet }" @click="toggleDynamicSet">
-                    个性化中心
+                    {{ t('personalizeCenter') }}
                 </button>
                 <span class="control-separator"></span>
 
                 <span class="status-badge" :class="{ 'is-active': isWidgetVisible }">
-                    {{ isWidgetVisible ? '已开启' : '已关闭' }}
+                    {{ isWidgetVisible ? t('enabled') : t('disabled') }}
                 </span>
                 <label class="switch header-switch">
                     <input type="checkbox" :checked="isWidgetVisible" @change="toggleWidget">
@@ -53,9 +53,9 @@
             <template v-if="!isDynamicSet">
                 <div class="card status-card">
                     <div class="card-header-row">
-                        <h3>实时状态</h3>
+                        <h3>{{ t('realtimeStatus') }}</h3>
                         <button class="stats-toggle-btn" @click="toggleRightPanel">
-                            {{ rightPanel === 'settings' ? '数据统计' : '退出' }}
+                            {{ rightPanel === 'settings' ? t('trafficStats') : t('exit') }}
                         </button>
                     </div>
                     <div class="speed-monitor">
@@ -68,7 +68,7 @@
                                 </svg>
                             </span>
                             <div class="speed-info">
-                                <span class="label">上传速度</span>
+                                <span class="label">{{ t('uploadSpeed') }}</span>
                                 <span class="value">{{ uploadSpeed }}</span>
                             </div>
                         </div>
@@ -81,7 +81,7 @@
                                 </svg>
                             </span>
                             <div class="speed-info">
-                                <span class="label">下载速度</span>
+                                <span class="label">{{ t('downloadSpeed') }}</span>
                                 <span class="value">{{ downloadSpeed }}</span>
                             </div>
                         </div>
@@ -90,21 +90,21 @@
                 </div>
 
                 <div class="card settings-card" v-if="rightPanel === 'settings'">
-                    <h3>控制台设置</h3>
+                    <h3>{{ t('consoleSettings') }}</h3>
                     <div class="setting-item flex-row-item" :class="{ 'is-dropdown-open': isThemeModeDropdownOpen }">
                         <div class="item-meta">
-                            <span class="item-title">主题颜色</span>
-                            <span class="item-desc">切换控制台主题色</span>
+                            <span class="item-title">{{ t('themeColor') }}</span>
+                            <span class="item-desc">{{ t('themeColorDesc') }}</span>
                         </div>
 
                         <div class="custom-dropdown" tabindex="0" @blur="isThemeModeDropdownOpen = false">
                             <div class="dropdown-trigger" style="width: 110px;"
                                 @click="isThemeModeDropdownOpen = !isThemeModeDropdownOpen">
                                 <div class="current-item">
-                                    <template v-if="themeMode === 'light'">浅色模式</template>
-                                    <template v-else-if="themeMode === 'dark'">深色模式</template>
-                                    <template v-else-if="themeMode === 'coverglass'">沉浸模式</template>
-                                    <template v-else-if="themeMode === 'system'">跟随系统</template>
+                                    <template v-if="themeMode === 'light'">{{ t('lightMode') }}</template>
+                                    <template v-else-if="themeMode === 'dark'">{{ t('darkMode') }}</template>
+                                    <template v-else-if="themeMode === 'coverglass'">{{ t('coverglassMode') }}</template>
+                                    <template v-else-if="themeMode === 'system'">{{ t('systemMode') }}</template>
                                 </div>
                                 <svg viewBox="0 0 24 24" class="arrow-icon"
                                     :class="{ 'is-open': isThemeModeDropdownOpen }">
@@ -117,19 +117,19 @@
                                 <div class="dropdown-menu" v-show="isThemeModeDropdownOpen" style="width: 100%;">
                                     <div class="dropdown-item" :class="{ 'is-active': themeMode === 'light' }"
                                         @click="handleSelectThemeMode('light')">
-                                        浅色模式
+                                        {{ t('lightMode') }}
                                     </div>
                                     <div class="dropdown-item" :class="{ 'is-active': themeMode === 'dark' }"
                                         @click="handleSelectThemeMode('dark')">
-                                        深色模式
+                                        {{ t('darkMode') }}
                                     </div>
                                     <div class="dropdown-item" :class="{ 'is-active': themeMode === 'coverglass' }"
                                         @click="handleSelectThemeMode('coverglass')">
-                                        沉浸模式
+                                        {{ t('coverglassMode') }}
                                     </div>
                                     <div class="dropdown-item" :class="{ 'is-active': themeMode === 'system' }"
                                         @click="handleSelectThemeMode('system')">
-                                        跟随系统
+                                        {{ t('systemMode') }}
                                     </div>
                                 </div>
                             </transition>
@@ -137,8 +137,8 @@
                     </div>
                     <div class="setting-item">
                         <div class="item-meta">
-                            <span class="item-title">开机自启动</span>
-                            <span class="item-desc">跟随系统启动并自动隐藏控制台</span>
+                            <span class="item-title">{{ t('autoStart') }}</span>
+                            <span class="item-desc">{{ t('autoStartDesc') }}</span>
                         </div>
                         <label class="switch">
                             <input type="checkbox" v-model="autoStart" @change="toggleAutoStart">
@@ -148,11 +148,11 @@
                     <div class="setting-item slider-item">
                         <div class="item-meta" style="width: 100%;">
                             <div class="combo-title-row">
-                                <span class="item-title">灵动岛不透明度</span>
+                                <span class="item-title">{{ t('islandOpacity') }}</span>
                                 <span class="title-separator">|</span>
                                 <span class="item-title-sec">
-                                    置于任务栏
-                                    <span class="tooltip-wrapper" data-tooltip="若要在全屏游戏中使用灵动岛建议关闭此项">
+                                    {{ t('pinToTaskbar') }}
+                                    <span class="tooltip-wrapper" :data-tooltip="t('pinToTaskbarTip')">
                                         <p class="set-item-tips-tag">🙋</p>
                                     </span>
                                 </span>
@@ -161,7 +161,7 @@
                                     <span class="slider"></span>
                                 </label>
                             </div>
-                            <span class="item-desc">调节灵动岛的背景透明度 ({{ opacity }}%)</span>
+                            <span class="item-desc">{{ t('islandOpacityDesc') }} ({{ opacity }}%)</span>
                         </div>
                         <input type="range" min="0" max="100" v-model="opacity" class="range-input" />
                     </div>
@@ -170,14 +170,14 @@
                 <template v-else>
                     <div class="card stats-card">
                         <div class="card-header-row">
-                            <h3>数据统计</h3>
+                            <h3>{{ t('trafficStats') }}</h3>
 
                             <div class="custom-dropdown" tabindex="0" @blur="isStatChartDropdownOpen = false">
                                 <div class="dropdown-trigger" style="width: 90px;"
                                     @click="isStatChartDropdownOpen = !isStatChartDropdownOpen">
                                     <div class="current-item">
-                                        <template v-if="statChartType === 'bar'">柱状图</template>
-                                        <template v-else-if="statChartType === 'line'">折线图</template>
+                                        <template v-if="statChartType === 'bar'">{{ t('barChart') }}</template>
+                                        <template v-else-if="statChartType === 'line'">{{ t('lineChart') }}</template>
                                     </div>
                                     <svg viewBox="0 0 24 24" class="arrow-icon"
                                         :class="{ 'is-open': isStatChartDropdownOpen }">
@@ -190,11 +190,11 @@
                                     <div class="dropdown-menu" v-show="isStatChartDropdownOpen" style="width: 100%;">
                                         <div class="dropdown-item" :class="{ 'is-active': statChartType === 'bar' }"
                                             @click="handleSelectStatChart('bar')">
-                                            柱状图
+                                            {{ t('barChart') }}
                                         </div>
                                         <div class="dropdown-item" :class="{ 'is-active': statChartType === 'line' }"
                                             @click="handleSelectStatChart('line')">
-                                            折线图
+                                            {{ t('lineChart') }}
                                         </div>
                                     </div>
                                 </transition>
@@ -202,18 +202,18 @@
                         </div>
                         <div class="stats-overview">
                             <div class="stat-box">
-                                <span class="stat-label">总上传</span>
+                                <span class="stat-label">{{ t('totalUpload') }}</span>
                                 <span class="stat-val">{{ formatBytesValue(totalUpload) }} {{
                                     formatBytesUnit(totalUpload) }}</span>
                                 <span class="stat-unit"></span>
                             </div>
                             <div class="stat-box">
-                                <span class="stat-label">总下载</span>
+                                <span class="stat-label">{{ t('totalDownload') }}</span>
                                 <span class="stat-val">{{ formatBytesValue(totalDownload) }} {{
                                     formatBytesUnit(totalDownload) }}</span>
                             </div>
                             <div class="stat-box">
-                                <span class="stat-label">本月流量</span>
+                                <span class="stat-label">{{ t('monthTraffic') }}</span>
                                 <span class="stat-val">{{ formatBytesValue(monthTraffic) }} {{
                                     formatBytesUnit(monthTraffic) }}</span>
                             </div>
@@ -225,15 +225,15 @@
                 <div class="dynamicset-grid bottom-grid-card">
                     <div class="set-item" :class="{ 'is-dropdown-open': isThemeDropdownOpen }">
                         <div class="set-item-meta">
-                            <span class="set-item-title">灵动岛颜色</span>
-                            <span class="set-item-desc">切换默认背景色调</span>
+                            <span class="set-item-title">{{ t('islandColor') }}</span>
+                            <span class="set-item-desc">{{ t('islandColorDesc') }}</span>
                         </div>
                         <div class="custom-dropdown" tabindex="0" @blur="isThemeDropdownOpen = false">
                             <div class="dropdown-trigger" @click="isThemeDropdownOpen = !isThemeDropdownOpen">
                                 <div class="current-item">
                                     <span class="color-preview-icon" :class="'theme-' + islandTheme"></span>
-                                    <template v-if="islandTheme === 'black'">暗色</template>
-                                    <template v-else-if="islandTheme === 'white'">亮色</template>
+                                    <template v-if="islandTheme === 'black'">{{ t('darkColor') }}</template>
+                                    <template v-else-if="islandTheme === 'white'">{{ t('lightColor') }}</template>
                                 </div>
                                 <svg viewBox="0 0 24 24" class="arrow-icon" :class="{ 'is-open': isThemeDropdownOpen }">
                                     <path d="M7 10l5 5 5-5" fill="none" stroke="currentColor" stroke-width="2"
@@ -245,11 +245,37 @@
                                 <div class="dropdown-menu" v-show="isThemeDropdownOpen">
                                     <div class="dropdown-item" :class="{ 'is-active': islandTheme === 'black' }"
                                         @click="handleSelectTheme('black')">
-                                        <span class="color-preview-icon theme-black"></span> 暗色
+                                        <span class="color-preview-icon theme-black"></span> {{ t('darkColor') }}
                                     </div>
                                     <div class="dropdown-item" :class="{ 'is-active': islandTheme === 'white' }"
                                         @click="handleSelectTheme('white')">
-                                        <span class="color-preview-icon theme-white"></span> 亮色
+                                        <span class="color-preview-icon theme-white"></span> {{ t('lightColor') }}
+                                    </div>
+                                </div>
+                            </transition>
+                        </div>
+                    </div>
+                    <div class="set-item" :class="{ 'is-dropdown-open': isLanguageDropdownOpen }">
+                        <div class="set-item-meta">
+                            <span class="set-item-title">{{ t('language') }}</span>
+                            <span class="set-item-desc">{{ t('languageDesc') }}</span>
+                        </div>
+                        <div class="custom-dropdown" tabindex="0" @blur="isLanguageDropdownOpen = false">
+                            <div class="dropdown-trigger" @click="isLanguageDropdownOpen = !isLanguageDropdownOpen">
+                                <div class="current-item">{{ t(currentLanguage === 'zh-CN' ? 'simplifiedChinese' : 'english') }}</div>
+                                <svg viewBox="0 0 24 24" class="arrow-icon"
+                                    :class="{ 'is-open': isLanguageDropdownOpen }">
+                                    <path d="M7 10l5 5 5-5" fill="none" stroke="currentColor" stroke-width="2"
+                                        stroke-linecap="round" />
+                                </svg>
+                            </div>
+
+                            <transition name="dropdown">
+                                <div class="dropdown-menu" v-show="isLanguageDropdownOpen">
+                                    <div v-for="option in languageOptions" :key="option.value" class="dropdown-item"
+                                        :class="{ 'is-active': currentLanguage === option.value }"
+                                        @click="handleSelectLanguage(option.value)">
+                                        {{ t(option.labelKey) }}
                                     </div>
                                 </div>
                             </transition>
@@ -257,32 +283,32 @@
                     </div>
                     <div class="set-item" :class="{ 'is-dropdown-open': isPlayerDropdownOpen }">
                         <div class="set-item-meta">
-                            <span class="set-item-title">目标媒体平台</span>
-                            <span class="set-item-desc">选择音乐媒体平台</span>
+                            <span class="set-item-title">{{ t('targetMediaPlatform') }}</span>
+                            <span class="set-item-desc">{{ t('targetMediaPlatformDesc') }}</span>
                         </div>
                         <div class="custom-dropdown" tabindex="0" @blur="isPlayerDropdownOpen = false">
                             <div class="dropdown-trigger" @click="isPlayerDropdownOpen = !isPlayerDropdownOpen">
                                 <div class="current-item">
                                     <template v-if="targetPlayer === 'netease'"><img src="../assets/musci163.svg"
-                                            class="platform-icon"> 网易云</template>
+                                            class="platform-icon"> {{ t('netease') }}</template>
                                     <template v-else-if="targetPlayer === 'spotify'"><img src="../assets/Spotify.svg"
                                             class="platform-icon"> Spotify</template>
                                     <template v-else-if="targetPlayer === 'apple'"><img src="../assets/applemusic.svg"
                                             class="platform-icon"> Apple</template>
                                     <template v-else-if="targetPlayer === 'qqmusic'"><img src="../assets/qqmusic.svg"
-                                            class="platform-icon"> QQ音乐</template>
+                                            class="platform-icon"> {{ t('qqMusic') }}</template>
                                     <template v-else-if="targetPlayer === 'kugou'"><img src="../assets/kugou.svg"
-                                            class="platform-icon"> 酷狗</template>
+                                            class="platform-icon"> {{ t('kugouMusic') }}</template>
                                     <template v-else-if="targetPlayer === 'echo'"><img src="../assets/echomusic.ico"
                                             class="platform-icon"> EchoMusic</template>
                                     <template v-else-if="targetPlayer === 'lx-music'"><img src="../assets/lxmusic.png"
-                                            class="platform-icon"> 洛雪音乐</template>
+                                            class="platform-icon"> {{ t('lxMusic') }}</template>
                                     <template v-else-if="targetPlayer === 'other'">
                                         <svg viewBox="0 0 24 24" class="platform-icon" fill="currentColor">
                                             <path
                                                 d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z" />
                                         </svg>
-                                        通用媒体
+                                        {{ t('genericMedia') }}
                                     </template>
                                 </div>
                                 <svg viewBox="0 0 24 24" class="arrow-icon"
@@ -296,7 +322,7 @@
                                 <div class="dropdown-menu" v-show="isPlayerDropdownOpen">
                                     <div class="dropdown-item" :class="{ 'is-active': targetPlayer === 'netease' }"
                                         @click="handleSelectPlayer('netease')">
-                                        <img src="../assets/musci163.svg" class="platform-icon"> 网易云
+                                        <img src="../assets/musci163.svg" class="platform-icon"> {{ t('netease') }}
                                     </div>
                                     <div class="dropdown-item" :class="{ 'is-active': targetPlayer === 'spotify' }"
                                         @click="handleSelectPlayer('spotify')">
@@ -308,11 +334,11 @@
                                     </div>
                                     <div class="dropdown-item" :class="{ 'is-active': targetPlayer === 'qqmusic' }"
                                         @click="handleSelectPlayer('qqmusic')">
-                                        <img src="../assets/qqmusic.svg" class="platform-icon"> QQ音乐
+                                        <img src="../assets/qqmusic.svg" class="platform-icon"> {{ t('qqMusic') }}
                                     </div>
                                     <div class="dropdown-item" :class="{ 'is-active': targetPlayer === 'kugou' }"
                                         @click="handleSelectPlayer('kugou')">
-                                        <img src="../assets/kugou.svg" class="platform-icon"> 酷狗
+                                        <img src="../assets/kugou.svg" class="platform-icon"> {{ t('kugouMusic') }}
                                     </div>
                                     <div class="dropdown-item" :class="{ 'is-active': targetPlayer === 'echo' }"
                                         @click="handleSelectPlayer('echo')">
@@ -320,7 +346,7 @@
                                     </div>
                                     <div class="dropdown-item" :class="{ 'is-active': targetPlayer === 'lx-music' }"
                                         @click="handleSelectPlayer('lx-music')">
-                                        <img src="../assets/lxmusic.png" class="platform-icon"> 洛雪音乐
+                                        <img src="../assets/lxmusic.png" class="platform-icon"> {{ t('lxMusic') }}
                                     </div>
                                     <div class="dropdown-item" :class="{ 'is-active': targetPlayer === 'other' }"
                                         @click="handleSelectPlayer('other')">
@@ -328,7 +354,7 @@
                                             <path
                                                 d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z" />
                                         </svg>
-                                        其他媒体控制
+                                        {{ t('otherMediaControl') }}
                                     </div>
                                 </div>
                             </transition>
@@ -336,8 +362,8 @@
                     </div>
                     <div class="set-item">
                         <div class="set-item-meta">
-                            <span class="set-item-title">媒体控制器</span>
-                            <span class="set-item-desc">支持 SMTC 控制及信息显示</span>
+                            <span class="set-item-title">{{ t('mediaController') }}</span>
+                            <span class="set-item-desc">{{ t('mediaControllerDesc') }}</span>
                         </div>
                         <label class="switch">
                             <input type="checkbox" v-model="enableMusicCtrl">
@@ -346,8 +372,8 @@
                     </div>
                     <div class="set-item">
                         <div class="set-item-meta">
-                            <span class="set-item-title">消息通知接收</span>
-                            <span class="set-item-desc">启用弹窗提醒</span>
+                            <span class="set-item-title">{{ t('messageNotifications') }}</span>
+                            <span class="set-item-desc">{{ t('messageNotificationsDesc') }}</span>
                         </div>
                         <label class="switch">
                             <input type="checkbox" v-model="enableMsgNotify" @change="toggleMsgNotify">
@@ -356,8 +382,8 @@
                     </div>
                     <div class="set-item">
                         <div class="set-item-meta">
-                            <span class="set-item-title">静默模式</span>
-                            <span class="set-item-desc">收到消息后才弹出</span>
+                            <span class="set-item-title">{{ t('quietMode') }}</span>
+                            <span class="set-item-desc">{{ t('quietModeDesc') }}</span>
                         </div>
                         <label class="switch">
                             <input type="checkbox" v-model="msgModeEnabled" @change="toggleMsgMode">
@@ -366,8 +392,8 @@
                     </div>
                     <div class="set-item">
                         <div class="set-item-meta">
-                            <span class="set-item-title">全屏自动隐藏</span>
-                            <span class="set-item-desc">游戏/视频全屏时自动隐藏岛</span>
+                            <span class="set-item-title">{{ t('fullscreenAutoHide') }}</span>
+                            <span class="set-item-desc">{{ t('fullscreenAutoHideDesc') }}</span>
                         </div>
                         <label class="switch">
                             <input type="checkbox" v-model="autoHideFullscreen" @change="toggleAutoHide">
@@ -389,13 +415,13 @@
                 <span>NSDPRO v{{ appVersion }}</span>
             </div>
             <div class="ft_right">
-                <span class="action-link" @click="openNSDweb">官方网站</span>
-                <span class="action-link" @click="openNSDdata">开源数据</span>
+                <span class="action-link" @click="openNSDweb">{{ t('officialWebsite') }}</span>
+                <span class="action-link" @click="openNSDdata">{{ t('openSourceData') }}</span>
                 <span class="action-link"
                     :style="{ opacity: isChecking ? 0.5 : 1, pointerEvents: isChecking ? 'none' : 'auto', position: 'relative' }"
                     @click="checkUpdate">
                     <span v-if="hasNewVersion" class="update-dot"></span>
-                    {{ isChecking ? '检查中...' : (hasNewVersion ? '检测到新版本' : '检查更新') }}
+                    {{ isChecking ? t('checking') : (hasNewVersion ? t('newVersionDetected') : t('checkUpdate')) }}
                 </span>
             </div>
         </footer>
@@ -410,8 +436,8 @@
                         <p>{{ dialog.message }}</p>
                     </div>
                     <div class="modal-footer">
-                        <button v-if="dialog.isConfirm" class="btn btn-secondary" @click="closeDialog">取消</button>
-                        <button class="btn btn-primary" @click="handleDialogConfirm">确定</button>
+                        <button v-if="dialog.isConfirm" class="btn btn-secondary" @click="closeDialog">{{ t('cancel') }}</button>
+                        <button class="btn btn-primary" @click="handleDialogConfirm">{{ t('confirm') }}</button>
                     </div>
                 </div>
             </div>
@@ -429,6 +455,7 @@ import { enable, disable, isEnabled } from '@tauri-apps/plugin-autostart';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import DynamicSet from '../components/DynamicSet.vue';
+import { t, currentLanguage, setLanguage, languageOptions, type AppLanguage } from '../i18n';
 
 const isWidgetVisible = ref(false);
 const autoStart = ref(false);
@@ -589,6 +616,14 @@ const handleSelectThemeMode = (mode: string) => {
     themeMode.value = mode;                 // 更新响应式变量
     isThemeModeDropdownOpen.value = false;  // 自动收起下拉框
     handleThemeChange();                    // 复用原有的处理逻辑（保存本地并应用主题）
+};
+
+const isLanguageDropdownOpen = ref(false);
+const handleSelectLanguage = async (language: AppLanguage) => {
+    setLanguage(language);
+    isLanguageDropdownOpen.value = false;
+    updateStatsChart();
+    await emit('control-language', { language });
 };
 
 // 灵动岛设置相关的 UI 状态绑定
@@ -752,7 +787,7 @@ const updateStatsChart = () => {
 
     statsChartInstance.setOption({
         tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
-        legend: { data: ['上传 (MB)', '下载 (MB)'], textStyle: { color: textColor }, top: 0 },
+        legend: { data: [t('trafficLegendUpload'), t('trafficLegendDownload')], textStyle: { color: textColor }, top: 0 },
         grid: { top: 30, left: '2%', right: '2%', bottom: '0%', containLabel: true },
         xAxis: {
             type: 'category',
@@ -767,7 +802,7 @@ const updateStatsChart = () => {
         },
         series: [
             {
-                name: '上传 (MB)',
+                name: t('trafficLegendUpload'),
                 type: statChartType.value,
                 smooth: true,
                 data: upData,
@@ -775,7 +810,7 @@ const updateStatsChart = () => {
                 barMaxWidth: 15
             },
             {
-                name: '下载 (MB)',
+                name: t('trafficLegendDownload'),
                 type: statChartType.value,
                 smooth: true,
                 data: downData,
@@ -795,7 +830,7 @@ const toggleAutoStart = async () => {
         }
     } catch (error) {
         autoStart.value = !autoStart.value;
-        showDialog('设置失败', '无法修改开机自启动状态，请检查系统权限。');
+        showDialog(t('settingFailedTitle'), t('autoStartFailed'));
     }
 };
 
@@ -992,12 +1027,12 @@ const checkUpdate = async () => {
         clearTimeout(timeoutId);
 
         if (response.status === 404) {
-            showDialog('检查更新', '未找到可用版本');
+            showDialog(t('checkUpdateTitle'), t('updateNotFound'));
             return;
         }
 
         if (!response.ok) {
-            showDialog('检查更新', '检查更新失败，请稍后再试');
+            showDialog(t('checkUpdateTitle'), t('updateCheckFailed'));
             return;
         }
 
@@ -1021,8 +1056,8 @@ const checkUpdate = async () => {
         if (findNew) {
             hasNewVersion.value = true;
             showDialog(
-                '发现新版本',
-                `发现新版本 ${remoteVersionStr}！当前版本为 v${localVersionStr}。是否前往 GitHub 下载更新？`,
+                t('newVersionTitle'),
+                t('newVersionMessage', { remote: remoteVersionStr, local: localVersionStr }),
                 true,
                 () => {
                     openUrl(data.html_url);
@@ -1031,15 +1066,15 @@ const checkUpdate = async () => {
             );
         } else {
             hasNewVersion.value = false;
-            showDialog('提示', '当前已是最新版本！');
+            showDialog(t('tipTitle'), t('latestVersion'));
         }
     } catch (error: any) {
         console.error('检查更新时出错:', error);
         // 👇 精准识别是不是超时导致的
         if (error.name === 'AbortError') {
-            showDialog('网络超时', '连接 GitHub 超时，请检查网络或稍后再试');
+            showDialog(t('networkTimeoutTitle'), t('networkTimeoutMessage'));
         } else {
-            showDialog('网络错误', '请求失败，请检查您的网络连接');
+            showDialog(t('networkErrorTitle'), t('networkErrorMessage'));
         }
     } finally {
         isChecking.value = false; // 👈 无论成功失败，最后都恢复状态
@@ -1073,6 +1108,10 @@ const handleSystemThemeUpdate = () => {
         applyTheme();
     }
 };
+
+watch(currentLanguage, () => {
+    updateStatsChart();
+});
 
 watch(opacity, async (newVal) => {
     localStorage.setItem('nsd_island_opacity', newVal.toString());
