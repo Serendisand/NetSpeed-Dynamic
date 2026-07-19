@@ -19,6 +19,7 @@
 
 ![Music Controller](./src/assets/screenshot2.png)
 ![Dynamic Island Notification](./src/assets/screenshot4.png)
+![Music Controller 2.0](./src/assets/screenshot.gif)
 ![2.3.9](./src/assets/screenshot6.png)
 ![2.3.8](./src/assets/screenshot7.png)
 ![2.3.7](./src/assets/screenshot8.png)

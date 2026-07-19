@@ -1,5 +1,5 @@
 <template>
-    <p>灵动岛个性化中心</p>
+    <p></p>
 </template>
 
 <script setup lang="ts">

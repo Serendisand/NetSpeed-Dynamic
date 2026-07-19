@@ -19,6 +19,7 @@
 
 ![音乐控制器](./src/assets/screenshot2.png)
 ![灵动岛通知](./src/assets/screenshot4.png)
+![音乐控制器 2.0](./src/assets/screenshot.gif)
 ![2.3.9](./src/assets/screenshot6.png)
 ![2.3.8](./src/assets/screenshot7.png)
 ![2.3.7](./src/assets/screenshot8.png)
