@@ -54,7 +54,7 @@ fn get_target_media_session() -> Option<GlobalSystemMediaTransportControlsSessio
 }
 
 #[command]
-pub async fn fetch_netease_music_info() -> Result<Option<(String, String, bool)>, String> {
+pub async fn fetch_netease_music_info() -> Result<Option<(String, String, bool, i64, i64)>, String> {
     let session = match get_target_media_session() {
         Some(s) => s,
         None => return Ok(None),
@@ -82,7 +82,37 @@ pub async fn fetch_netease_music_info() -> Result<Option<(String, String, bool)>
         return Ok(None);
     }
 
-    Ok(Some((title, artist, is_playing)))
+    let mut position_ms: i64 = 0;
+    let mut duration_ms: i64 = 0; // 新增：用于记录歌曲总时长
+
+    if let Ok(timeline) = session.GetTimelineProperties() {
+        if let Ok(pos) = timeline.Position() {
+            position_ms = pos.Duration / 10000;
+            
+            // 提取准确的歌曲总时长
+            if let Ok(end) = timeline.EndTime() {
+                duration_ms = end.Duration / 10000;
+            }
+            
+            // 补偿算法保持不变
+            if is_playing {
+                if let Ok(last_updated) = timeline.LastUpdatedTime() {
+                    if let Ok(now) = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
+                        let current_100ns = (now.as_nanos() / 100) as i64 + 116_444_736_000_000_000;
+                        let diff_100ns = current_100ns - last_updated.UniversalTime;
+                        let diff_ms = diff_100ns / 10000;
+                        
+                        if diff_ms > 0 && diff_ms < 86400000 {
+                            position_ms += diff_ms;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // 返回值增加了一个 duration_ms 参数
+    Ok(Some((title, artist, is_playing, position_ms, duration_ms)))
 }
 
 #[command]
@@ -228,4 +258,67 @@ pub async fn get_random_cover_url(song_name: String, artist_name: String) -> Res
         Ok(Some(url)) => Ok(url),
         _ => Ok("data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTUwIiBoZWlnaHQ9IjE1MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZGVmcz48bGluZWFyR3JhZGllbnQgaWQ9ImciIHgxPSIwJSIgeTE9IjAlIiB4Mj0iMTAwJSIgeTI9IjEwMCUiPjxzdG9wIG9mZnNldD0iMCUiIHN0b3AtY29sb3I9IiNhOGVkZWEiLz48c3RvcCBvZmZzZXQ9IjEwMCUiIHN0b3AtY29sb3I9IiNmZWQ2ZTMiLz48L2xpbmVhckdyYWRpZW50PjwvZGVmcz48cmVjdCB3aWR0aD0iMTUwIiBoZWlnaHQ9IjE1MCIgcng9Ijc1IiBmaWxsPSJ1cmwoI2cpIi8+PC9zdmc+".to_string()),
     }
+}
+
+
+#[command]
+pub async fn fetch_netease_lyrics(song_name: String, artist_name: String, duration_ms: i64) -> Result<String, String> {
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(3))
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    let ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36";
+    let query = format!("{} {}", song_name, artist_name);
+
+    // 1. 搜索获取歌曲列表（将 limit 扩大到 8，提供充足的对比样本）
+    let search_resp = client.post("https://music.163.com/api/search/get/web")
+        .header("Referer", "https://music.163.com")
+        .header("User-Agent", ua)
+        .form(&[("s", query.as_str()), ("type", "1"), ("limit", "8"), ("offset", "0")])
+        .send().await;
+
+    if let Ok(resp) = search_resp {
+        if let Ok(json) = resp.json::<serde_json::Value>().await {
+            // 2. 核心比对算法：遍历搜索结果，找到时长最接近当前播放的那个版本
+            if let Some(songs) = json.pointer("/result/songs").and_then(|v| v.as_array()) {
+                let mut best_song_id = None;
+                let mut min_diff = i64::MAX;
+
+                for song in songs {
+                    // 兼容网易云不同接口风格的 duration 或 dt 字段
+                    let song_duration = song.get("duration").or(song.get("dt")).and_then(|v| v.as_i64());
+                    let id = song.get("id").and_then(|v| v.as_i64());
+
+                    if let (Some(id), Some(song_dur)) = (id, song_duration) {
+                        // 如果底层没有传上来有效时长，退化为原版的盲选逻辑
+                        if duration_ms <= 0 {
+                            best_song_id = Some(id);
+                            break;
+                        }
+
+                        let diff = (song_dur - duration_ms).abs();
+                        if diff < min_diff {
+                            min_diff = diff;
+                            best_song_id = Some(id);
+                        }
+                    }
+                }
+
+                // 3. 使用找出的精准 ID 获取歌词
+                if let Some(song_id) = best_song_id {
+                    let lyric_url = format!("https://music.163.com/api/song/lyric?id={}&lv=-1&kv=-1&tv=-1", song_id);
+                    if let Ok(lyric_resp) = client.get(&lyric_url).header("User-Agent", ua).send().await {
+                        if let Ok(lyric_json) = lyric_resp.json::<serde_json::Value>().await {
+                            if let Some(lyric_text) = lyric_json.pointer("/lrc/lyric").and_then(|v| v.as_str()) {
+                                return Ok(lyric_text.to_string());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    Ok("".to_string())
 }

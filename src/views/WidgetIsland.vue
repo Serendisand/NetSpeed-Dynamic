@@ -98,11 +98,13 @@
                                 </div>
                                 <div class="music-info-mask-box" ref="maskBoxRef">
                                     <div class="music-info-text single-line" :class="{ 'fade-out': isMusicExpanded }">
-                                        <span class="scroll-inner" ref="textInnerRef"
-                                            :class="{ 'is-scrolling': scrollDist > 0 }"
-                                            :style="scrollDist > 0 ? { '--scroll-dist': scrollDist + 'px', '--scroll-duration': scrollDuration } : {}">
-                                            {{ currentTrackInfo }}
-                                        </span>
+                                        <transition name="lyric-fade" mode="out-in">
+                                            <span class="scroll-inner" ref="textInnerRef" :key="currentTrackInfo"
+                                                :class="{ 'is-scrolling': scrollDist > 0 }"
+                                                :style="scrollDist > 0 ? { '--scroll-dist': scrollDist + 'px', '--scroll-duration': scrollDuration } : {}">
+                                                {{ currentTrackInfo }}
+                                            </span>
+                                        </transition>
                                     </div>
                                     <div class="music-info-text double-line" :class="{ 'fade-in': isMusicExpanded }">
                                         <div class="song-title">{{ currentSongName }}</div>
@@ -333,6 +335,41 @@ const networkStatus = ref<'good' | 'warning' | 'error'>('good');
 // 音乐控制功能开关
 const isMusicCtlEnabled = ref(localStorage.getItem('nsd_music_ctrl') === 'true');
 const isPlaying = ref(false);
+// 歌词显示
+const parsedLyrics = ref<{ time: number; text: string }[]>([]);
+const currentBaseInfo = ref(''); // 用于在没有歌词时兜底显示 "歌名 - 歌手"
+// 歌词时间推算专用变量
+const localPositionMs = ref(0);
+let lastTickTime = performance.now();
+// 歌词防吞字与队列控制
+const lyricQueue = ref<string[]>([]);
+let lastLyricChangeTime = 0;
+let currentMatchedIndex = -1;
+
+// 简单的 LRC 解析器
+const parseLrc = (lrcStr: string) => {
+    const lines = lrcStr.split('\n');
+    const result: { time: number; text: string }[] = [];
+    const timeReg = /\[(\d{2}):(\d{2})\.(\d{2,3})\]/;
+
+    for (const line of lines) {
+        const match = timeReg.exec(line);
+        if (match) {
+            const min = parseInt(match[1]);
+            const sec = parseInt(match[2]);
+            const msStr = match[3].length === 2 ? match[3] + '0' : match[3];
+            const ms = parseInt(msStr);
+            const time = min * 60000 + sec * 1000 + ms;
+            const text = line.replace(timeReg, '').trim();
+
+            if (text && !text.includes('纯音乐') && text !== 'lrc' && text !== '//') {
+                result.push({ time, text });
+            }
+        }
+    }
+    return result.sort((a, b) => a.time - b.time);
+};
+
 // 流光边框默认状态完全镜像音乐控制器（只要音乐控制器开着它就开，关了就一起关）
 const isGlowBorderEnabled = ref(localStorage.getItem('nsd_glow_border') === 'true');
 
@@ -440,55 +477,74 @@ const nextTrack = async () => {
 // 核心同步函数：负责获取状态并智能降级
 const syncMusicStatus = async () => {
     try {
-        const res = await invoke<[string, string, boolean] | null>('fetch_netease_music_info');
+        const res = await invoke<[string, string, boolean, number, number] | null>('fetch_netease_music_info');
 
         if (res) {
-            const [song, artist, playing] = res;
+            const [song, artist, playing, positionMs, durationMs] = res;
 
-            // 发现媒体活跃：重置所有标记
             if (!isMediaActive.value) isMediaActive.value = true;
             isFirstMediaCheck = false;
-            isNewlyEnabled = false; // 检测到有声音，直接销毁“刚开启”的标记
+            isNewlyEnabled = false;
 
             currentSongName.value = song;
             currentArtistName.value = artist || '未知歌手';
 
             const newTrackInfo = artist ? `${song} - ${artist}` : song;
 
-            if (currentTrackInfo.value !== newTrackInfo) {
+            // 核心 1：是否是新切的歌？
+            if (currentBaseInfo.value !== newTrackInfo) {
+                currentBaseInfo.value = newTrackInfo;
                 currentTrackInfo.value = newTrackInfo;
+                parsedLyrics.value = [];
+
+                // 重置歌词队列与匹配状态
+                lyricQueue.value = [];
+                currentMatchedIndex = -1;
+                lastLyricChangeTime = performance.now();
+
+                // 换歌时，强制同步一次底层时间（无论底层准不准，这是唯一合法的重置点）
+                localPositionMs.value = positionMs;
 
                 if (coverCache.has(newTrackInfo)) {
                     coverUrl.value = coverCache.get(newTrackInfo)!;
                 } else {
-                    try {
-                        const realCoverUrl = await invoke<string>('get_random_cover_url', {
-                            songName: song,
-                            artistName: artist
-                        });
-                        coverUrl.value = realCoverUrl;
-                        if (coverCache.size > 50) coverCache.clear();
-                        coverCache.set(newTrackInfo, realCoverUrl);
-                    } catch (coverErr) {
-                        coverUrl.value = '';
-                    }
+                    invoke<string>('get_random_cover_url', { songName: song, artistName: artist })
+                        .then(url => {
+                            coverUrl.value = url;
+                            if (coverCache.size > 50) coverCache.clear();
+                            coverCache.set(newTrackInfo, url);
+                        }).catch(() => { coverUrl.value = ''; });
+                }
+
+                invoke<string>('fetch_netease_lyrics', { songName: song, artistName: artist, durationMs })
+                    .then(lrc => {
+                        if (lrc) parsedLyrics.value = parseLrc(lrc);
+                    }).catch(() => { console.log('未找到歌词'); });
+            } else {
+                // 核心 2：是同一首歌，正在播放中！
+                // 只有到底层传来的时间大于 0，且和前端差距超过 2000ms（用户真拖拽了进度条）时，才允许校准！
+                // 彻底屏蔽底层疯狂发 0 导致的鬼畜回弹！
+                if (positionMs > 1000 && Math.abs(positionMs - localPositionMs.value) > 2000) {
+                    localPositionMs.value = positionMs;
                 }
             }
+
             isPlaying.value = playing;
+
+            if (parsedLyrics.value.length === 0 && currentTrackInfo.value !== currentBaseInfo.value) {
+                currentTrackInfo.value = currentBaseInfo.value;
+            }
         } else {
-            // 没检测到播放时清空状态
             currentTrackInfo.value = `未在播放歌曲 - ${getPlayerName()}`;
             isPlaying.value = false;
             coverUrl.value = '';
 
-            // 触发自动降级
             if (isMediaActive.value) {
-                isMediaActive.value = false; // 隐藏媒体岛，切回网速岛
+                isMediaActive.value = false;
 
-                // 👇 根据状态给予不同的精准反馈
                 if (isNewlyEnabled) {
                     showToast('已开启媒体控制，暂无音频播放', 'sys');
-                    isNewlyEnabled = false; // 消费掉这个标记
+                    isNewlyEnabled = false;
                 } else if (!isFirstMediaCheck && isMusicCtlEnabled.value) {
                     showToast('无媒体活动，已切换为网速显示', 'sys');
                 }
@@ -1341,14 +1397,73 @@ onMounted(async () => {
         currentHeight.value = h;
     });
 
-    // 高频频谱拉取 (大约 20 帧/秒)
+    // 高频频谱拉取 (大约 20 帧/秒) 兼顾 歌词高频匹配
     spectrumTimer = setInterval(async () => {
-        if (isPlaying.value && showSpectrumIndicator.value) {
-            try {
-                const data = await invoke<number[]>('get_audio_spectrum');
-                spectrumData.value = data;
-            } catch (err) {
-                // 忽略错误，防止刷屏
+        // 计算这 50ms 里真实流逝的时间（防掉帧补偿）
+        const now = performance.now();
+        const delta = now - lastTickTime;
+        lastTickTime = now;
+
+        if (isPlaying.value) {
+            // 1. 播放状态下，本地时钟疯狂往前推算
+            localPositionMs.value += delta;
+
+            // 2. 毫秒级歌词匹配与队列逻辑 (解决快节奏吞字、闪烁消失问题)
+            if (parsedLyrics.value.length > 0) {
+                let matchedIndex = -1;
+
+                // 找出当前时间进度应该播放哪一句
+                for (let i = 0; i < parsedLyrics.value.length; i++) {
+                    // 提前 250ms 触发，完美抵消前端叠化动画产生的视觉延迟
+                    if (parsedLyrics.value[i].time <= localPositionMs.value + 250) {
+                        matchedIndex = i;
+                    } else {
+                        break;
+                    }
+                }
+
+                // 如果匹配到了新进度的歌词
+                if (matchedIndex > currentMatchedIndex) {
+                    // 如果是首次匹配，或者用户大幅快进导致跨度超过 2 句，直接清空队列，显示最新
+                    if (currentMatchedIndex === -1 || matchedIndex - currentMatchedIndex > 2) {
+                        lyricQueue.value = [];
+                        lyricQueue.value.push(parsedLyrics.value[matchedIndex].text);
+                    } else {
+                        // 正常连续播放推进，把期间极快节奏的短歌词全部推入队列排队
+                        for (let i = currentMatchedIndex + 1; i <= matchedIndex; i++) {
+                            lyricQueue.value.push(parsedLyrics.value[i].text);
+                        }
+                    }
+                    currentMatchedIndex = matchedIndex;
+                } else if (matchedIndex < currentMatchedIndex && matchedIndex !== -1) {
+                    // 用户往回倒退了进度条
+                    lyricQueue.value = [];
+                    lyricQueue.value.push(parsedLyrics.value[matchedIndex].text);
+                    currentMatchedIndex = matchedIndex;
+                }
+
+                // 3. 消费队列：确保每句歌词展示充足的时间，避免 Vue 叠化动画打架
+                if (lyricQueue.value.length > 0) {
+                    const now = performance.now();
+                    // out-in 动画加起来需要 300ms，设定 800ms 能让文字至少稳定停留 0.5 秒
+                    if (now - lastLyricChangeTime >= 800) {
+                        const nextLyric = lyricQueue.value.shift();
+                        if (nextLyric && nextLyric !== currentTrackInfo.value) {
+                            currentTrackInfo.value = nextLyric;
+                            lastLyricChangeTime = now;
+                        }
+                    }
+                }
+            }
+
+            // 3. 原有的频谱逻辑保持不变
+            if (showSpectrumIndicator.value) {
+                try {
+                    const data = await invoke<number[]>('get_audio_spectrum');
+                    spectrumData.value = data;
+                } catch (err) {
+                    // 忽略错误，防止刷屏
+                }
             }
         } else {
             // 没在播放时，让柱子平滑回落到最低点
@@ -2109,5 +2224,18 @@ onUnmounted(() => {
     white-space: nowrap;
     opacity: 0.95;
     transform: translateX(-2px) translateY(-1px);
+}
+
+/* 歌词叠化淡入淡出动画 */
+.lyric-fade-enter-active,
+.lyric-fade-leave-active {
+    transition: opacity 0.15s ease, filter 0.15s ease;
+}
+
+.lyric-fade-enter-from,
+.lyric-fade-leave-to {
+    opacity: 0;
+    filter: blur(5px);
+    /* 加一点微微的高斯模糊，让文字切换更有电影感 */
 }
 </style>

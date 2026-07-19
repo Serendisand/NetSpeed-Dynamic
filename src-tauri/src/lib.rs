@@ -264,6 +264,7 @@ pub fn run() {
             music_controller::fetch_netease_music_info,
             music_controller::control_system_media,
             music_controller::get_random_cover_url,
+            music_controller::fetch_netease_lyrics,
         ])
         .setup(|app| {
             audio_spectrum::start_monitor();
