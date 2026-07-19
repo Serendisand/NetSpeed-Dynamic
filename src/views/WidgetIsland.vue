@@ -278,6 +278,8 @@ const nsdMusicExpandedWidth = ref(Number(localStorage.getItem('nsd_music_expande
 const nsdMsgExpandedWidth = ref(Number(localStorage.getItem('nsd_msg_expanded_width')) || 360);
 const nsdBorderRadius = ref(Number(localStorage.getItem('nsd_border_radius')) || 100);
 const nsdSpringStyle = ref(localStorage.getItem('nsd_spring_style') || 'bouncy');
+const isAlwaysOnTop = ref(localStorage.getItem('nsd_always_on_top') !== 'false');
+const isMouseThrough = ref(localStorage.getItem('nsd_mouse_through') === 'true');
 
 // 1. 瞬间判定当前是否处于大窗口状态
 const isExpandedSize = computed(() => isMusicExpanded.value || isMsgActive.value);
@@ -1195,6 +1197,8 @@ const getAppIcon = (appName: string) => {
 };
 
 onMounted(async () => {
+    const appWindow = getCurrentWindow();
+    
     window.addEventListener('blur', collapseMusic);
 
     document.addEventListener('contextmenu', (e) => {
@@ -1226,8 +1230,8 @@ onMounted(async () => {
         }
     });
 
-    // 【新增】监听个性化中心发来的同步指令
-    await listen<any>('sync-dynamic-settings', (event) => {
+    // 监听个性化中心发来的同步指令
+    await listen<any>('sync-dynamic-settings', async (event) => {
         const data = event.payload;
         nsdBaseWidth.value = Number(data.baseWidth);
         nsdBaseHeight.value = Number(data.baseHeight);
@@ -1236,6 +1240,15 @@ onMounted(async () => {
         nsdBorderRadius.value = Number(data.borderRadius);
         isGlowBorderEnabled.value = Boolean(data.isGlowBorderEnabled);
         nsdSpringStyle.value = data.springStyle;
+
+        // 同步层级与穿透状态
+        isAlwaysOnTop.value = data.isAlwaysOnTop !== false;
+        isMouseThrough.value = data.isMouseThrough === true;
+
+        // 获取当前 Tauri 窗口实例并动态应用物理特性
+        const appWindow = getCurrentWindow();
+        await appWindow.setAlwaysOnTop(isAlwaysOnTop.value);
+        await appWindow.setIgnoreCursorEvents(isMouseThrough.value);
 
         // 收到设置修改后，如果此时没有展开音乐或显示通知，则立即触发形变更新外观！
         if (!isMsgActive.value && !displaySysToast.value && !isMusicExpanded.value && !isMusicExpanding.value) {
@@ -1330,8 +1343,6 @@ onMounted(async () => {
         }
     });
 
-    // 初始化位置追踪
-    const appWindow = getCurrentWindow();
     try {
         await appWindow.innerPosition();
     } catch (e) { }
@@ -1370,7 +1381,7 @@ onMounted(async () => {
     // 1. 高频定时器：专门负责网速和硬件监控（每 500ms ~ 1000ms 刷新一次）
     speedTimer = setInterval(async () => {
         // 强置顶逻辑
-        if (isPinnedToTaskbar.value && isIslandVisible.value && !isMenuOpen.value) {
+        if (isAlwaysOnTop.value && isPinnedToTaskbar.value && isIslandVisible.value && !isMenuOpen.value) {
             invoke('force_window_topmost').catch(() => { });
         }
 

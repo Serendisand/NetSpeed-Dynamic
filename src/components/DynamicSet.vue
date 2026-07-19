@@ -66,27 +66,26 @@
                 <div class="card-header">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
                         stroke-linejoin="round" class="title-icon">
-                        <line x1="12" y1="5" x2="12" y2="19" />
-                        <line x1="5" y1="12" x2="19" y2="12" />
+                        <polygon points="12 2 2 7 12 12 22 7 12 2" />
+                        <polyline points="2 17 12 22 22 17" />
+                        <polyline points="2 12 17 22 12" />
                     </svg>
-                    <span>桌面坐标偏移</span>
+                    <span>窗口层级与穿透</span>
                 </div>
-                <div class="stepper-group">
-                    <div class="stepper-row">
-                        <span class="axis">Y轴</span>
-                        <div class="stepper-control">
-                            <button @click="offsetY -= 5">-</button>
-                            <input type="text" :value="offsetY + 'px'" readonly />
-                            <button @click="offsetY += 5">+</button>
-                        </div>
+                <div class="form-group-list">
+                    <div class="form-item">
+                        <span class="label">始终置顶</span>
+                        <label class="mock-switch">
+                            <input type="checkbox" v-model="isAlwaysOnTop">
+                            <span class="slider"></span>
+                        </label>
                     </div>
-                    <div class="stepper-row">
-                        <span class="axis">X轴</span>
-                        <div class="stepper-control">
-                            <button @click="offsetX -= 5">-</button>
-                            <input type="text" :value="offsetX + 'px'" readonly />
-                            <button @click="offsetX += 5">+</button>
-                        </div>
+                    <div class="form-item mt-auto">
+                        <span class="label">鼠标穿透 (空闲时)</span>
+                        <label class="mock-switch">
+                            <input type="checkbox" v-model="isMouseThrough">
+                            <span class="slider"></span>
+                        </label>
                     </div>
                 </div>
             </div>
@@ -105,7 +104,7 @@
             <div class="slider-list-container">
                 <div class="slider-row">
                     <div class="row-info">
-                        <span class="row-title">常态驻留宽度</span>
+                        <span class="row-title">常规宽度</span>
                         <span class="row-desc">控制待机时的长度 (默认 150px)</span>
                     </div>
                     <div class="row-action">
@@ -125,7 +124,7 @@
                 <div class="slider-row">
                     <div class="row-info">
                         <span class="row-title">全局高度基准</span>
-                        <span class="row-desc">影响所有状态下的厚度 (默认 34px)</span>
+                        <span class="row-desc">影响所有状态下的高度 (默认 34px)</span>
                     </div>
                     <div class="row-action">
                         <input type="range" min="30" max="60" v-model.number="baseHeight"
@@ -143,7 +142,7 @@
 
                 <div class="slider-row">
                     <div class="row-info">
-                        <span class="row-title">音乐控制器宽度</span>
+                        <span class="row-title">媒体控制器卡片宽度</span>
                         <span class="row-desc">点击播放控件展开后的宽度 (默认 320px)</span>
                     </div>
                     <div class="row-action">
@@ -188,26 +187,25 @@
 import { ref, watch } from 'vue';
 import { emit } from '@tauri-apps/api/event';
 
-// 尺寸状态 (优先读取本地缓存，如果没有则使用默认值)
+// 尺寸状态
 const baseWidth = ref(Number(localStorage.getItem('nsd_base_width')) || 150);
 const baseHeight = ref(Number(localStorage.getItem('nsd_base_height')) || 34);
-// 拆分为两个独立的宽度变量
 const musicExpandedWidth = ref(Number(localStorage.getItem('nsd_music_expanded_width')) || 320);
 const msgExpandedWidth = ref(Number(localStorage.getItem('nsd_msg_expanded_width')) || 360);
 
 // 形态与外观
 const borderRadius = ref(Number(localStorage.getItem('nsd_border_radius')) || 100);
-const isGlowBorderEnabled = ref(localStorage.getItem('nsd_glow_border') !== 'false'); // 默认开启
+const isGlowBorderEnabled = ref(localStorage.getItem('nsd_glow_border') !== 'false');
 
 // 物理动效
 const springStyle = ref<'stiff' | 'bouncy'>((localStorage.getItem('nsd_spring_style') as 'stiff' | 'bouncy') || 'bouncy');
 
-// 桌面坐标偏移 (暂不开发，保留结构)
-const offsetX = ref(0);
-const offsetY = ref(10);
+// 替换掉坐标偏移，改为窗口交互特性
+const isAlwaysOnTop = ref(localStorage.getItem('nsd_always_on_top') !== 'false'); // 默认开启置顶
+const isMouseThrough = ref(localStorage.getItem('nsd_mouse_through') === 'true'); // 默认关闭穿透
 
 // 统一监听更新逻辑入口
-watch([baseWidth, baseHeight, musicExpandedWidth, msgExpandedWidth, borderRadius, isGlowBorderEnabled, springStyle], async () => {
+watch([baseWidth, baseHeight, musicExpandedWidth, msgExpandedWidth, borderRadius, isGlowBorderEnabled, springStyle, isAlwaysOnTop, isMouseThrough], async () => {
     // 1. 写入本地缓存
     localStorage.setItem('nsd_base_width', String(baseWidth.value));
     localStorage.setItem('nsd_base_height', String(baseHeight.value));
@@ -216,8 +214,10 @@ watch([baseWidth, baseHeight, musicExpandedWidth, msgExpandedWidth, borderRadius
     localStorage.setItem('nsd_border_radius', String(borderRadius.value));
     localStorage.setItem('nsd_glow_border', String(isGlowBorderEnabled.value));
     localStorage.setItem('nsd_spring_style', springStyle.value);
+    localStorage.setItem('nsd_always_on_top', String(isAlwaysOnTop.value));
+    localStorage.setItem('nsd_mouse_through', String(isMouseThrough.value));
 
-    // 2. 发送 IPC 事件广播
+    // 2. 发送 IPC 事件广播给 Tauri 后端
     await emit('sync-dynamic-settings', {
         baseWidth: baseWidth.value,
         baseHeight: baseHeight.value,
@@ -225,7 +225,9 @@ watch([baseWidth, baseHeight, musicExpandedWidth, msgExpandedWidth, borderRadius
         msgExpandedWidth: msgExpandedWidth.value,
         borderRadius: borderRadius.value,
         isGlowBorderEnabled: isGlowBorderEnabled.value,
-        springStyle: springStyle.value
+        springStyle: springStyle.value,
+        isAlwaysOnTop: isAlwaysOnTop.value,
+        isMouseThrough: isMouseThrough.value
     });
 }, { deep: true });
 </script>
